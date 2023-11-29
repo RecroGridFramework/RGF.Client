@@ -14,6 +14,8 @@
     <Copyright>© Recrovit Kft. All rights reserved.</Copyright>
     <Version>8.0.0-preview</Version>
     <FileVersion>$(Version).1$([System.DateTime]::Now.ToString(MMdd))</FileVersion>
+    <InformationalVersion>$(FileVersion)</InformationalVersion>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
 
   <PropertyGroup>
@@ -34,11 +36,14 @@
     <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="8.0.0" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="8.0.0" />
     <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="8.0.0" />
-    <PackageReference Include="Recrovit.RecroGridFramework.Abstraction" Version="1.0.0" Condition="'$(Configuration)'=='Release'" />
   </ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\..\..\RGF.Abstraction\src\RGF.Abstraction.csproj" Condition="'$(Configuration)'=='Debug'" />
+  <ItemGroup Condition="'$(Configuration)'=='Release'" >
+    <PackageReference Include="Recrovit.RecroGridFramework.Abstraction" Version="1.0.0"/>
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(Configuration)'=='Debug'" >
+    <ProjectReference Include="..\..\..\RGF.Abstraction\src\RGF.Abstraction.csproj" />
   </ItemGroup>
 
   <ItemGroup>

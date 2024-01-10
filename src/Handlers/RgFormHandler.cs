@@ -86,6 +86,8 @@ internal class RgFormHandler : IRgFormHandler
 
             if (prop.Alias != null)
             {
+                data[prop.Alias] = prop.OrigValue;
+                _logger.LogDebug("RgfForm.Deserialize => Id:{Id}, Alias={Alias}, Value:{Value}", prop.Id, prop.Alias, prop.OrigValue);
                 if (isNewEntry)
                 {
                     if (prop.OrigValue != null && prop.AvailableItems?.Any(e => e.Key == prop.OrigValue) != true)
@@ -102,7 +104,6 @@ internal class RgFormHandler : IRgFormHandler
                         data[$"rg-col-{key.Key}"] = key.Value;
                     }
                 }
-                data[prop.Alias] = prop.OrigValue;
             }
             else
             {

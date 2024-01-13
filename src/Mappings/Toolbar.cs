@@ -1,10 +1,5 @@
 ﻿using Recrovit.RecroGridFramework.Abstraction.Contracts.Constants;
 using Recrovit.RecroGridFramework.Client.Events;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Recrovit.RecroGridFramework.Client.Mappings;
 
@@ -19,6 +14,8 @@ public static class Toolbar
         if (menuCommand == Menu.RecroTrack) return ToolbarAction.RecroTrack;
         if (menuCommand == Menu.QueryString) return ToolbarAction.QueryString;
         if (menuCommand == Menu.QuickWatch) return ToolbarAction.QuickWatch;
+
+        if (menuCommand == Menu.ExportCsv) return ToolbarAction.ExportCsv;
 
         if (menuCommand == Menu.RgfAbout) return ToolbarAction.RgfAbout;
 

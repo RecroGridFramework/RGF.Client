@@ -18,6 +18,8 @@ public interface IRgListHandler
 
     ObservableProperty<List<RgfDynamicDictionary>> GridData { get; }
     bool IsFiltered { get; }
+    bool IsLoading { get; }
+
     ObservableProperty<int> ItemCount { get; }
     int ItemsPerPage { get; }
     ObservableProperty<int> PageSize { get; }
@@ -25,6 +27,7 @@ public interface IRgListHandler
 
     void Dispose();
     Task<List<RgfDynamicDictionary>> GetDataListAsync();
+    Task<RgfResult<RgfCustomFunctionResult>> CallCustomFunctionAsync(string functionName, bool requireQueryParams = false, Dictionary<string, object>? customParams = null);
     RgfDynamicDictionary GetEKey(RgfDynamicDictionary data);
     void InitFilter(RgfFilter.Condition[] conditions);
     Task PageChangingAsync(ObservablePropertyEventArgs<int> args);
@@ -123,29 +126,38 @@ internal class RgListHandler : IDisposable, IRgListHandler
     public ObservableProperty<int> ActivePage { get; private set; } = new(1, nameof(ActivePage));
     public int ItemsPerPage => (int)EntityDesc.Options.GetLongValue("RGO_ItemsPerPage", 10);
     public bool IsFiltered => ListParam.UserFilter?.Any() == true;
+    public bool IsLoading { get; set; }
 
     public ObservableProperty<List<RgfDynamicDictionary>> GridData { get; private set; } = new(new List<RgfDynamicDictionary>(), nameof(GridData));
 
     public async Task<List<RgfDynamicDictionary>> GetDataListAsync()
     {
+        IsLoading = true;
         List<RgfDynamicDictionary> list = new();
-        if (_initialized)
+        try
         {
-            int page = PageSize.Value > 0 ? ListParam.Skip / PageSize.Value : 0;
-            if (!TryGetCacheData(page, out list))
+            if (_initialized)
             {
-                ListParam.Columns = UserColumns.ToArray();
-                var param = new RgfGridRequest(_manager.SessionParams)
+                int page = PageSize.Value > 0 ? ListParam.Skip / PageSize.Value : 0;
+                if (!TryGetCacheData(page, out list))
                 {
-                    EntityName = EntityDesc.EntityName,
-                    ListParam = ListParam
-                };
-                param.ListParam.Preload = PageSize.Value;//TODO: nem kezeli a visszafelé lapozást, ezért csak 1 lapot olvasunk
-                await LoadRecroGridAsync(param, page);
-                TryGetCacheData(page, out list);
+                    ListParam.Columns = UserColumns.ToArray();
+                    var param = new RgfGridRequest(_manager.SessionParams)
+                    {
+                        EntityName = EntityDesc.EntityName,
+                        ListParam = ListParam
+                    };
+                    param.ListParam.Preload = PageSize.Value;//TODO: nem kezeli a visszafelé lapozást, ezért csak 1 lapot olvasunk
+                    await LoadRecroGridAsync(param, page);
+                    TryGetCacheData(page, out list);
+                }
             }
+            GridData.Value = list;
         }
-        GridData.Value = list;
+        finally
+        {
+            IsLoading = false;
+        }
         return list;
     }
 
@@ -160,6 +172,26 @@ internal class RgListHandler : IDisposable, IRgListHandler
         {
             ActivePage.Value = 1;
         }
+    }
+
+    public async Task<RgfResult<RgfCustomFunctionResult>> CallCustomFunctionAsync(string functionName, bool requireQueryParams = false, Dictionary<string, object>? customParams = null)
+    {
+        var param = new RgfGridRequest(_manager.SessionParams)
+        {
+            EntityName = _manager.EntityDesc.EntityName,
+            SessionId = _manager.SessionParams.SessionId
+        };
+        param.FunctionName = functionName;
+        if (requireQueryParams)
+        {
+            param.ListParam = ListParam;
+        }
+        if (customParams != null)
+        {
+            param.CustomParams = customParams;
+        }
+
+        return await _manager.CallCustomFunctionAsync(param);
     }
 
     public async Task PageChangingAsync(ObservablePropertyEventArgs<int> args)
@@ -278,6 +310,7 @@ internal class RgListHandler : IDisposable, IRgListHandler
             {
                 list[i].ColPos = ++i;
             }
+            ListParam.Columns = UserColumns.ToArray();
             if (refresh)
             {
                 await GetDataListAsync();
@@ -377,7 +410,7 @@ internal class RgListHandler : IDisposable, IRgListHandler
 
     private string[] DataColumns { get; set; } = new string[0];
 
-    public IEnumerable<int> UserColumns => EntityDesc.Properties.Where(e => e.ColPos > 0).Select(e => e.Id);
+    public IEnumerable<int> UserColumns => EntityDesc.SortedVisibleColumns.Select(e => e.Id);
 
     private int QuerySkip { get; set; }
 

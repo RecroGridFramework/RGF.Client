@@ -3,10 +3,6 @@ using Recrovit.RecroGridFramework.Abstraction.Contracts.API;
 using Recrovit.RecroGridFramework.Abstraction.Contracts.Services;
 using Recrovit.RecroGridFramework.Abstraction.Infrastructure.API;
 using Recrovit.RecroGridFramework.Abstraction.Infrastructure.Security;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Text.Json;
 
 namespace Recrovit.RecroGridFramework.Client.Services;
@@ -34,6 +30,7 @@ public class ApiService : IRgfApiService
             var httpClient = _httpClientFactory.CreateClient(request.AuthClient ? RgfAuthApiClientName : RgfApiClientName);
             var uriBuilder = new UriBuilder(new Uri(httpClient.BaseAddress!, request.Uri));
             uriBuilder.Query = request.Query;
+            _logger.LogDebug("GetAsync => uri:{uri}", uriBuilder.Uri.PathAndQuery);
             var response = await httpClient.GetAsync(uriBuilder.Uri, request.CancellationToken);
             await GetResult(request, response, res);
         }
@@ -67,20 +64,33 @@ public class ApiService : IRgfApiService
         result.StatusCode = response.StatusCode;
         if (response.IsSuccessStatusCode)
         {
-            object body;
+            object? body;
             if (typeof(ResultType) == typeof(string))
             {
                 body = await response.Content.ReadAsStringAsync(request.CancellationToken) ?? "";
             }
+            else if (typeof(ResultType) == typeof(Stream))
+            {
+                body = await response.Content.ReadAsStreamAsync();
+            }
+            else if (typeof(ResultType) == typeof(HttpResponseMessage))
+            {
+                body = response;
+            }
             else
             {
-                using var contentStream = await response.Content.ReadAsStreamAsync();
-#pragma warning disable CS8600 // Converting null literal or possible null value to non-nullable type.
+                using Stream contentStream = await response.Content.ReadAsStreamAsync();
                 body = await JsonSerializer.DeserializeAsync<ResultType>(contentStream, new JsonSerializerOptions() { PropertyNameCaseInsensitive = true }, request.CancellationToken);
-#pragma warning restore CS8600 // Converting null literal or possible null value to non-nullable type.
             }
-            result.Result = (body as ResultType)!;
-            result.Success = true;
+            if (body is ResultType)
+            {
+                result.Result = (ResultType)body;
+                result.Success = true;
+            }
+            else
+            {
+                result.Success = false;
+            }
         }
         else
         {
@@ -91,7 +101,7 @@ public class ApiService : IRgfApiService
 
 public static class IRgfServiceExtension
 {
-    public static Task<IRgfApiResponse<string>> GetResourceAsync(this IRgfApiService service, string resource, string query) => service.GetAsync<string>($"/rgf/resource/{resource}", query);
+    public static Task<IRgfApiResponse<ResultType>> GetResourceAsync<ResultType>(this IRgfApiService service, string name, Dictionary<string, string> query) where ResultType : class => service.GetAsync<ResultType>($"/rgf/api/resource/{name}", query);
 
     public static Task<IRgfApiResponse<string>> GetAboutAsync(this IRgfApiService service) => service.GetAsync<string>($"/rgf/api/AboutDialog");
 
@@ -109,7 +119,10 @@ public static class IRgfServiceExtension
 
     public static Task<IRgfApiResponse<RgfResult<RgfPredefinedFilterResult>>> SavePredefinedFilterAsync(this IRgfApiService service, RgfGridRequest param) => service.PostAsync<RgfResult<RgfPredefinedFilterResult>, RgfGridRequest>($"/rgf/api/entity/SavePredefinedFilter", param);
 
-    public static Task<IRgfApiResponse<List<RecroSecResult>>> GetPermissions(this IRgfApiService service, IEnumerable<RecroSecQuery> param) => service.PostAsync<List<RecroSecResult>, IEnumerable<RecroSecQuery>>($"/rgf/api/recrosec/Permissions", param);
+    public static Task<IRgfApiResponse<RgfResult<RgfCustomFunctionResult>>> CallCustomFunctionAsync(this IRgfApiService service, RgfGridRequest param) => service.PostAsync<RgfResult<RgfCustomFunctionResult>, RgfGridRequest>($"/rgf/api/entity/CustomFunction", param);
 
-    public static Task<IRgfApiResponse<RgfUserState>> GetUserState(this IRgfApiService service) => service.GetAsync<RgfUserState>($"/rgf/api/recrosec/UserState");
+
+    public static Task<IRgfApiResponse<List<RecroSecResult>>> GetPermissionsAsync(this IRgfApiService service, IEnumerable<RecroSecQuery> param) => service.PostAsync<List<RecroSecResult>, IEnumerable<RecroSecQuery>>($"/rgf/api/recrosec/Permissions", param);
+
+    public static Task<IRgfApiResponse<RgfUserState>> GetUserStateAsync(this IRgfApiService service) => service.GetAsync<RgfUserState>($"/rgf/api/recrosec/UserState");
 }

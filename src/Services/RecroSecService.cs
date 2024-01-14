@@ -5,11 +5,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Recrovit.RecroGridFramework.Abstraction.Contracts.Services;
 using Recrovit.RecroGridFramework.Abstraction.Infrastructure.Security;
-using System;
 using System.Data;
-using System.Linq;
 using System.Security.Claims;
-using System.Text;
 
 namespace Recrovit.RecroGridFramework.Client.Services;
 
@@ -113,7 +110,7 @@ internal class RecroSecService : IRecroSecService, IDisposable
         _logger.LogDebug("IsAuthenticated:{IsAuthenticated}, UserName:{UserName}, Roles:{Roles}", IsAuthenticated, UserName, string.Join(", ", UserRoles));
         if (IsAuthenticated)
         {
-            var resp = await _apiService.GetUserState();
+            var resp = await _apiService.GetUserStateAsync();
             if (resp.Success && resp.Result.IsValid)
             {
                 await _recroDict.SetDefaultLanguageAsync(resp.Result.Language);
@@ -145,7 +142,7 @@ internal class RecroSecService : IRecroSecService, IDisposable
         }
         if (req.Any())
         {
-            var resp = await _apiService.GetPermissions(req);
+            var resp = await _apiService.GetPermissionsAsync(req);
             if (resp.Success)
             {
                 var options = new MemoryCacheEntryOptions().SetAbsoluteExpiration(TimeSpan.FromSeconds(expiration));

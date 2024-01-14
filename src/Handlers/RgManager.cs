@@ -36,6 +36,8 @@ public interface IRgManager : IDisposable
     Task<RgfResult<RgfPredefinedFilterResult>> SavePredefinedFilterAsync(RgfPredefinedFilter predefinedFilter);
 
     Task<RgfResult<RgfGridResult>> GetRecroGridAsync(RgfGridRequest param);
+    Task<RgfResult<RgfCustomFunctionResult>> CallCustomFunctionAsync(RgfGridRequest param);
+    Task<ResultType> GetResourceAsync<ResultType>(string name, Dictionary<string, string> query) where ResultType : class;
 
     IRgFormHandler CreateFormHandler();
     Task<RgfResult<RgfFormResult>> GetFormAsync(RgfGridRequest param);
@@ -109,6 +111,7 @@ public class RgManager : IRgManager
     public ObservableProperty<int> ItemCount => ListHandler.ItemCount;
     public ObservableProperty<int> PageSize => ListHandler.PageSize;
     public ObservableProperty<int> ActivePage => ListHandler.ActivePage;
+
     public bool IsFiltered => ListHandler.IsFiltered;
 
     public event Action<bool> RefreshEntity = default!;
@@ -167,6 +170,7 @@ public class RgManager : IRgManager
 
     public async Task<RgfResult<RgfGridResult>> GetRecroGridAsync(RgfGridRequest param)
     {
+        _logger.LogDebug("GetRecroGridAsync: {EntityName}", param.EntityName);
         var res = await _rgfService.GetRecroGridAsync(param);
         if (!res.Success)
         {
@@ -182,6 +186,34 @@ public class RgManager : IRgManager
             {
                 SessionParams.GridId = res.Result.Result.GridId;
             }
+        }
+        return res.Result;
+    }
+
+    public async Task<RgfResult<RgfCustomFunctionResult>> CallCustomFunctionAsync(RgfGridRequest param)
+    {
+        var res = await _rgfService.CallCustomFunctionAsync(param);
+        if (!res.Success)
+        {
+            NotificationManager.RaiseEvent(new RgfUserMessage(RecroDict, UserMessageType.Error, res.ErrorMessage), this);
+        }
+        return res.Result;
+    }
+
+    public async Task<ResultType> GetResourceAsync<ResultType>(string name, Dictionary<string, string> query) where ResultType : class
+    {
+        if (query == null)
+        {
+            query = new();
+        }
+        if (!query.ContainsKey("lang"))
+        {
+            query.Add("lang", RecroDict.DefaultLanguage);
+        }
+        var res = await _rgfService.GetResourceAsync<ResultType>(name, query);
+        if (!res.Success)
+        {
+            NotificationManager.RaiseEvent(new RgfUserMessage(RecroDict, UserMessageType.Error, res.ErrorMessage), this);
         }
         return res.Result;
     }

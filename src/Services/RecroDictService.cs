@@ -3,12 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Recrovit.RecroGridFramework.Abstraction.Contracts.Services;
 using Recrovit.RecroGridFramework.Abstraction.Extensions;
-using System;
-using System.Collections;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 
 namespace Recrovit.RecroGridFramework.Client.Services;
 
@@ -24,47 +19,42 @@ internal class RecroDictService : IRecroDictService
         _dictionaryCache = new ConcurrentDictionary<string, MemoryCache>();
 
         var config = configuration.GetSection("Recrovit:RecroGridFramework:RecroDict");
-        DefaultLanguage = config.GetValue<string>("DefaultLanguage", "eng")!;
+        DefaultLanguage = (config.GetValue<string>("DefaultLanguage", "eng") ?? "eng").ToLower();
         Languages = new Dictionary<string, string>() { { DefaultLanguage, DefaultLanguage } };
         _rgfUi = new Dictionary<string, string>();
     }
 
-    public async Task InitializeAsync()
+    public async Task InitializeAsync(string? language = null)
     {
-        if (!_isInitialized)
+        if (language == null)
         {
-            var dict = await GetDictionaryAsync("RGF.Language", DefaultLanguage, false);
+            language = DefaultLanguage;
+        }
+        if (!IsInitialized || language != _uiLanguage)
+        {
+            var dict = await GetDictionaryAsync("RGF.Language", language, false);
             Languages = dict.ToDictionary(k => k.Key, v => v.Value);
 
-            dict = await GetDictionaryAsync("RGF.UI", DefaultLanguage, false);
+            dict = await GetDictionaryAsync("RGF.UI", language, false);
             _rgfUi = dict.ToDictionary(k => k.Key, v => v.Value);
 
-            _logger.LogDebug("Initialized");
-            _isInitialized = true;
+            _logger.LogInformation($"RecroDict:{language} initialized.");
+            _uiLanguage = language;
+            IsInitialized = true;
         }
     }
-
 
     public string DefaultLanguage { get; private set; }
 
     public Dictionary<string, string> Languages { get; private set; }
 
-    private bool _isInitialized = false;
+    public bool IsInitialized { get; private set; }
 
     private ConcurrentDictionary<string, MemoryCache> _dictionaryCache { get; }
 
     private Dictionary<string, string> _rgfUi { get; set; }
 
-    public async Task SetDefaultLanguageAsync(string language)
-    {
-        if (language != null && DefaultLanguage != language)
-        {
-            _logger.LogDebug("Change language: {language}", language);
-            _isInitialized = false;
-            DefaultLanguage = language;
-            await InitializeAsync();
-        }
-    }
+    private string? _uiLanguage;
 
     public virtual async Task<ConcurrentDictionary<string, string>> GetDictionaryAsync(string scope, string? language = null, bool authClient = true)
     {
@@ -89,7 +79,7 @@ internal class RecroDictService : IRecroDictService
 
     public string GetRgfUiString(string stringId)
     {
-        if (!_isInitialized)
+        if (!IsInitialized)
         {
             return "RecroDict has not been initialized";
         }

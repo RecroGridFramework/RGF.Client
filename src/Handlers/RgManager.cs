@@ -208,7 +208,7 @@ public class RgManager : IRgManager
         }
         if (!query.ContainsKey("lang"))
         {
-            query.Add("lang", RecroDict.DefaultLanguage);
+            query.Add("lang", RecroSec.UserLanguage);
         }
         var res = await _rgfService.GetResourceAsync<ResultType>(name, query);
         if (!res.Success)

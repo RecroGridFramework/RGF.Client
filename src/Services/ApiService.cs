@@ -124,5 +124,5 @@ public static class IRgfServiceExtension
 
     public static Task<IRgfApiResponse<List<RecroSecResult>>> GetPermissionsAsync(this IRgfApiService service, IEnumerable<RecroSecQuery> param) => service.PostAsync<List<RecroSecResult>, IEnumerable<RecroSecQuery>>($"/rgf/api/recrosec/Permissions", param);
 
-    public static Task<IRgfApiResponse<RgfUserState>> GetUserStateAsync(this IRgfApiService service) => service.GetAsync<RgfUserState>($"/rgf/api/recrosec/UserState");
+    public static Task<IRgfApiResponse<RgfUserState>> GetUserStateAsync(this IRgfApiService service, Dictionary<string, string>? query = null) => service.GetAsync<RgfUserState>($"/rgf/api/recrosec/UserState", query);
 }

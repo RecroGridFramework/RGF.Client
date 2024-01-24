@@ -4,6 +4,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Recrovit.RecroGridFramework.Abstraction.Contracts.Services;
+using Recrovit.RecroGridFramework.Abstraction.Infrastructure.Events;
 using Recrovit.RecroGridFramework.Abstraction.Infrastructure.Security;
 using System.Data;
 using System.Security.Claims;
@@ -19,15 +20,15 @@ internal class RecroSecService : IRecroSecService, IDisposable
 {
     private readonly ILogger _logger;
     private readonly IRgfApiService _apiService;
-    private readonly IRecroDictService _recroDict;
+    private readonly IServiceProvider _serviceProvider;
     private readonly RecroSecServiceOptions _options = new();
-    private AuthenticationStateProvider? _authenticationStateProvider;
+    private readonly AuthenticationStateProvider? _authenticationStateProvider;
 
-    public RecroSecService(IConfiguration configuration, ILogger<RecroSecService> logger, IRgfApiService apiService, IRecroDictService recroDict, IServiceProvider serviceProvider)
+    public RecroSecService(IConfiguration configuration, ILogger<RecroSecService> logger, IRgfApiService apiService, IServiceProvider serviceProvider)
     {
         _logger = logger;
         _apiService = apiService;
-        this._recroDict = recroDict;
+        _serviceProvider = serviceProvider;
         configuration.Bind("Recrovit:RecroGridFramework:RecroSec", _options);
         _authenticationStateProvider = serviceProvider.GetService<AuthenticationStateProvider>();
         if (_authenticationStateProvider != null)
@@ -45,11 +46,49 @@ internal class RecroSecService : IRecroSecService, IDisposable
         }
     }
 
-    private MemoryCache _recrosSecCache { get; } = new MemoryCache(new MemoryCacheOptions());
-
     public bool IsAuthenticated => CurrentUser.Identity?.IsAuthenticated == true;
 
     public string? UserName => CurrentUser.Identity?.Name;
+
+    public string UserLanguage
+    {
+        get
+        {
+            if (string.IsNullOrEmpty(_userLanguage))
+            {
+                if (IsAuthenticated)
+                {
+                    var languageClaim = CurrentUser.FindFirst("Language");
+                    _userLanguage = languageClaim?.Value;
+                }
+                if (string.IsNullOrEmpty(_userLanguage))
+                {
+                    var recroDict = _serviceProvider.GetRequiredService<IRecroDictService>();
+                    _userLanguage = recroDict.DefaultLanguage;
+                }
+            }
+            return _userLanguage;
+        }
+    }
+
+    public async Task<string?> SetUserLanguageAsync(string language)
+    {
+        string? prev = _userLanguage;
+        if (language != null && !language.Equals(UserLanguage, StringComparison.OrdinalIgnoreCase))
+        {
+            language = language.ToLower();
+            var recroDict = _serviceProvider.GetRequiredService<IRecroDictService>();
+            if (recroDict.Languages.ContainsKey(language))
+            {
+                var res = await SetLangAsync(language);
+                if (res)
+                {
+                    _ = await _apiService.GetUserStateAsync(new() { { "language", language } });//save language setting
+                }
+            }
+        }
+        return prev;
+    }
 
     public bool IsAdmin
     {
@@ -74,6 +113,7 @@ internal class RecroSecService : IRecroSecService, IDisposable
             return isAdmin;
         }
     }
+
     public ClaimsPrincipal CurrentUser { get; private set; } = new();
 
     public List<string> UserRoles
@@ -107,15 +147,29 @@ internal class RecroSecService : IRecroSecService, IDisposable
         var authenticationState = await stateTask;
         CurrentUser = authenticationState.User ?? new();
         //var roles = CurrentUser.FindFirst("role")?.Value ?? CurrentUser.FindFirst("roles")?.Value : "?";
-        _logger.LogDebug("IsAuthenticated:{IsAuthenticated}, UserName:{UserName}, Roles:{Roles}", IsAuthenticated, UserName, string.Join(", ", UserRoles));
+        _logger.LogInformation("IsAuthenticated:{IsAuthenticated}, UserName:{UserName}, Roles:{Roles}", IsAuthenticated, UserName, string.Join(", ", UserRoles));
         if (IsAuthenticated)
         {
             var resp = await _apiService.GetUserStateAsync();
-            if (resp.Success && resp.Result.IsValid)
+            if (resp.Success && resp.Result.IsValid && !string.IsNullOrEmpty(resp.Result.Language))
             {
-                await _recroDict.SetDefaultLanguageAsync(resp.Result.Language);
+                await SetLangAsync(resp.Result.Language);
             }
         }
+    }
+
+    private async Task<bool> SetLangAsync(string language)
+    {
+        if (language != null && !language.Equals(_userLanguage, StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogInformation("SetLang:{language}", language);
+            _userLanguage = language;
+            var recroDict = _serviceProvider.GetRequiredService<IRecroDictService>();
+            await recroDict.InitializeAsync(language);
+            _ = LanguageChangedEvent.InvokeAsync(new(language));
+            return true;
+        }
+        return false;
     }
 
     public async Task<RgfPermissions> GetPermissionsAsync(string objectName, string objectKey, int expiration = 60)
@@ -156,4 +210,10 @@ internal class RecroSecService : IRecroSecService, IDisposable
         }
         return res;
     }
+
+    public EventDispatcher<DataEventArgs<string>> LanguageChangedEvent { get; } = new();
+
+    private string? _userLanguage;
+
+    private MemoryCache _recrosSecCache { get; } = new MemoryCache(new MemoryCacheOptions());
 }

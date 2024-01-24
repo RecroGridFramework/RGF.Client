@@ -5,11 +5,6 @@ using Recrovit.RecroGridFramework.Abstraction.Extensions;
 using Recrovit.RecroGridFramework.Abstraction.Models;
 using Recrovit.RecroGridFramework.Client.Events;
 using Recrovit.RecroGridFramework.Client.Models;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Recrovit.RecroGridFramework.Client.Handlers;
 
@@ -151,6 +146,7 @@ internal class RgFormHandler : IRgFormHandler
             {
                 var newData = formViewData.DataRec.GetItemData(name);
                 var orig = origProps.SingleOrDefault(e => e.Id == prop.Id);
+                _logger.LogDebug("SaveData: name:{name}={new}", name, newData);
                 if (orig != null)
                 {
                     if (orig.ForeignEntity?.EntityKeys.Any() == true)
@@ -160,12 +156,14 @@ internal class RgFormHandler : IRgFormHandler
                         if (fkProp != null && formViewData.DataRec.GetItemData(fkProp.Alias).Value != null)
                         {
                             //The key is also provided, so we omit the filter string.
+                            _logger.LogDebug("SaveData.Skip: name:{name}", name);
                             continue;
                         }
                     }
                     var origData = new RgfDynamicData(prop.ClientDataType, orig.OrigValue);
                     if (!origData.Equals(newData))
                     {
+                        _logger.LogDebug("SaveData.ChangeData: name:{name}, new:{new}, orig:{orig}", name, newData, origData);
                         param.Data.SetMember(prop.ClientName, newData.ToString());
                     }
                 }

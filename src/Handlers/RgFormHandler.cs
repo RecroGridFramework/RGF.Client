@@ -142,7 +142,7 @@ internal class RgFormHandler : IRgFormHandler
         foreach (var name in formViewData.DataRec.GetDynamicMemberNames())
         {
             var prop = _manager.EntityDesc.Properties.SingleOrDefault(e => e.Alias.Equals(name, StringComparison.OrdinalIgnoreCase));
-            if (prop != null)
+            if (prop != null && prop.FormType != PropertyFormType.RecroGrid && prop.FormType != PropertyFormType.ImageInDB)
             {
                 var newData = formViewData.DataRec.GetItemData(name);
                 var orig = origProps.SingleOrDefault(e => e.Id == prop.Id);

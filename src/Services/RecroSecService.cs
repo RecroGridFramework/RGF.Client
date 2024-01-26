@@ -162,8 +162,8 @@ internal class RecroSecService : IRecroSecService, IDisposable
     {
         if (language != null && !language.Equals(_userLanguage, StringComparison.OrdinalIgnoreCase))
         {
-            _logger.LogInformation("SetLang:{language}", language);
             _userLanguage = language;
+            _logger.LogInformation("SetLang:{language}", language);
             var recroDict = _serviceProvider.GetRequiredService<IRecroDictService>();
             await recroDict.InitializeAsync(language);
             _ = LanguageChangedEvent.InvokeAsync(new(language));

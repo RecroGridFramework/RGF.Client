@@ -24,6 +24,7 @@ public static class RgfClientConfigurationExtension
         {
             RgfClientConfiguration.AppRootUrl = root.EndsWith('/') ? root : root + "/";
         }
+        logger?.LogInformation("AddRgfServices: AppRootUrl={AppRootUrl} ApiService.BaseAddress={BaseAddress}", RgfClientConfiguration.AppRootUrl, ApiService.BaseAddress);
 
         if (string.IsNullOrEmpty(ApiService.BaseAddress))
         {
@@ -46,13 +47,16 @@ public static class RgfClientConfigurationExtension
         return services;
     }
 
-    public static async Task InitializeRgfClientAsync(this IServiceProvider serviceProvider)
+    public static async Task InitializeRgfClientAsync(this IServiceProvider serviceProvider, bool clientSideRendering = true)
     {
         if (!RgfClientConfiguration.IsInitialized)
         {
-            var recroDict = serviceProvider.GetRequiredService<IRecroDictService>();
-            _ = serviceProvider.GetRequiredService<IRecroSecService>();
-            await recroDict.InitializeAsync();
+            if (clientSideRendering)
+            {
+                var recroDict = serviceProvider.GetRequiredService<IRecroDictService>();
+                await recroDict.InitializeAsync();
+                _ = serviceProvider.GetRequiredService<IRecroSecService>();
+            }
             var ver = Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyFileVersionAttribute>()?.Version;
             var logger = serviceProvider.GetRequiredService<ILogger<RgfClientConfiguration>>();
             logger?.LogInformation($"RecroGrid Framework Client v{ver} initialized.");

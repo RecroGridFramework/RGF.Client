@@ -17,6 +17,7 @@ public enum ToolbarAction
     SaveSettings,
     ResetSettings,
 
+    EntityEditor,
     RecroTrack,
     QueryString,
     QuickWatch,

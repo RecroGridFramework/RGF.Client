@@ -19,6 +19,8 @@ public static class Toolbar
 
         if (menuCommand == Menu.RgfAbout) return ToolbarAction.RgfAbout;
 
+        if (menuCommand == Menu.EntityEditor) return ToolbarAction.EntityEditor;
+
         return ToolbarAction.Invalid;
     }
 }

@@ -1,5 +1,4 @@
 ﻿using Microsoft.AspNetCore.Components;
-using System;
 
 namespace Recrovit.RecroGridFramework.Client.Handlers;
 
@@ -19,42 +18,54 @@ public class ObservableProperty<TItem>
     public ObservableProperty(TItem value, string? name = null)
     {
         _value = value;
-        _name = name;
+        Name = name;
     }
 
     private TItem _value;
-    private readonly object _lock = new object();
+    private SemaphoreSlim _lock = new SemaphoreSlim(1, 1);
+    private int _lockThreadId;
 
-    private List<EventCallback<ObservablePropertyEventArgs<TItem>>> _afterChangeCallbacks = new();
-    private List<EventCallback<ObservablePropertyEventArgs<TItem>>> _beforeChangeCallbacks = new();
+    private readonly List<EventCallback<ObservablePropertyEventArgs<TItem>>> _afterChangeCallbacks = [];
+    private readonly List<EventCallback<ObservablePropertyEventArgs<TItem>>> _beforeChangeCallbacks = [];
 
     public TItem Value
     {
         get => _value;
-        set => SetValue(value);
+        set => _ = SetValueAsync(value);
     }
-    public string? _name { get; }
 
-    private void SetValue(TItem newData)
+    public string? Name { get; }
+
+    public async Task SetValueAsync(TItem newData)
     {
-        lock (_lock)
+        await Lock();
+        try
         {
             bool eq = typeof(IEquatable<TItem>).IsAssignableFrom(typeof(TItem));
             if (!eq || !Equals(newData, _value))
             {
                 var args = new ObservablePropertyEventArgs<TItem>(_value, newData);
-                NotifyBeforeChange(args);
+                await NotifyBeforeChangeAsync(args);
                 _value = newData;
-                _ = SendChangeNotificationAsync(args);
+                await SendChangeNotificationAsync(args);
             }
+        }
+        finally
+        {
+            Unlock();
         }
     }
 
-    public void ModifySilently(TItem newValue)
+    public async Task ModifySilentlyAsync(TItem newValue)
     {
-        lock (_lock)
+        await Lock();
+        try
         {
             _value = newValue;
+        }
+        finally
+        {
+            Unlock();
         }
     }
 
@@ -71,6 +82,7 @@ public class ObservableProperty<TItem>
         _afterChangeCallbacks.Add(callback);
         return new DisposableCallback(this, callback);
     }
+
     public IDisposable OnAfterChange(object receiver, Func<ObservablePropertyEventArgs<TItem>, Task> handler)
     {
         var callback = EventCallback.Factory.Create(receiver, handler);
@@ -88,21 +100,46 @@ public class ObservableProperty<TItem>
         }
     }
 
-    private void NotifyBeforeChange(ObservablePropertyEventArgs<TItem> args)
+    private Task NotifyBeforeChangeAsync(ObservablePropertyEventArgs<TItem> args)
     {
-        foreach (var fn in _beforeChangeCallbacks)
+        if (_beforeChangeCallbacks.Any())
         {
-            fn.InvokeAsync(args);
+            var tasks = _beforeChangeCallbacks.Select(callback => callback.InvokeAsync(args)).ToArray();
+            return Task.WhenAll(tasks);
         }
+        return Task.CompletedTask;
     }
 
-    public async Task SendChangeNotificationAsync(ObservablePropertyEventArgs<TItem> args)
+    public Task SendChangeNotificationAsync(ObservablePropertyEventArgs<TItem> args)
     {
-        foreach (var callback in _afterChangeCallbacks)
+        if (_afterChangeCallbacks.Any())
         {
-            await callback.InvokeAsync(args);
+            var tasks = _afterChangeCallbacks.Select(callback => callback.InvokeAsync(args)).ToArray();
+            return Task.WhenAll(tasks);
         }
+        return Task.CompletedTask;
     }
+
+    private async Task<bool> Lock()
+    {
+        if (Thread.CurrentThread.ManagedThreadId != _lockThreadId)
+        {
+            await _lock.WaitAsync();
+            _lockThreadId = Thread.CurrentThread.ManagedThreadId;
+        }
+        return true;
+    }
+
+    private void Unlock()
+    {
+        if (Thread.CurrentThread.ManagedThreadId != _lockThreadId)
+        {
+            throw new InvalidOperationException();
+        }
+        _lockThreadId = 0;
+        _lock.Release();
+    }
+
 
     private class DisposableCallback : IDisposable
     {
@@ -113,6 +150,7 @@ public class ObservableProperty<TItem>
         }
 
         public ObservableProperty<TItem> Property { get; }
+
         public EventCallback<ObservablePropertyEventArgs<TItem>> Callback { get; }
 
         public void Dispose() => Property.Unsubscribe(this);

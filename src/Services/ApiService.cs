@@ -27,9 +27,8 @@ public class ApiService : IRgfApiService
         var res = new ApiResponse<ResultType>() { Success = false };
         try
         {
-            var httpClient = _httpClientFactory.CreateClient(request.AuthClient ? RgfAuthApiClientName : RgfApiClientName);
-            var uriBuilder = new UriBuilder(new Uri(httpClient.BaseAddress!, request.Uri));
-            uriBuilder.Query = request.Query;
+            using var httpClient = _httpClientFactory.CreateClient(request.AuthClient ? RgfAuthApiClientName : RgfApiClientName);
+            var uriBuilder = new UriBuilder(new Uri(httpClient.BaseAddress!, request.Uri)) { Query = request.Query };
             _logger.LogDebug("GetAsync => uri:{uri}", uriBuilder.Uri.PathAndQuery);
             var response = await httpClient.GetAsync(uriBuilder.Uri, request.CancellationToken);
             await GetResult(request, response, res);
@@ -47,7 +46,7 @@ public class ApiService : IRgfApiService
         var res = new ApiResponse<ResultType>() { Success = false };
         try
         {
-            var httpClient = _httpClientFactory.CreateClient(request.AuthClient ? RgfAuthApiClientName : RgfApiClientName);
+            using var httpClient = _httpClientFactory.CreateClient(request.AuthClient ? RgfAuthApiClientName : RgfApiClientName);
             var response = await httpClient.PostAsync(request.Uri, request.Content, request.CancellationToken);
             await GetResult(request, response, res);
         }

@@ -16,7 +16,6 @@ internal class RecroDictService : IRecroDictService
     {
         _logger = logger;
         _apiService = apiService;
-        _dictionaryCache = new ConcurrentDictionary<string, MemoryCache>();
 
         var config = configuration.GetSection("Recrovit:RecroGridFramework:RecroDict");
         DefaultLanguage = (config.GetValue<string>("DefaultLanguage", "eng") ?? "eng").ToLower();
@@ -50,7 +49,7 @@ internal class RecroDictService : IRecroDictService
 
     public bool IsInitialized { get; private set; }
 
-    private ConcurrentDictionary<string, MemoryCache> _dictionaryCache { get; }
+    private static ConcurrentDictionary<string, MemoryCache> _dictionaryCache { get; } = new();
 
     private Dictionary<string, string> _rgfUi { get; set; }
 

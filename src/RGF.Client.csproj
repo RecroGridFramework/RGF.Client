@@ -10,9 +10,9 @@
 
   <PropertyGroup>
     <Company>Recrovit Kft.</Company>
-    <Product>RecroGrid Framework Client</Product>
+    <Product>RecroGrid Framework</Product>
     <Copyright>© Recrovit Kft. All rights reserved.</Copyright>
-    <Version>8.2.0</Version>
+    <Version>8.3.0</Version>
     <FileVersion>$(Version).1$([System.DateTime]::Now.ToString(MMdd))</FileVersion>
     <InformationalVersion>$(FileVersion)</InformationalVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
@@ -20,7 +20,6 @@
 
   <PropertyGroup>
     <Authors>$(Company)</Authors>
-    <Title>$(Product)</Title>
     <PackageOutputPath>..\..\dist</PackageOutputPath>
     <PackageProjectUrl>https://recrogrid.com/</PackageProjectUrl>
     <Description>$(Title)</Description>
@@ -43,7 +42,7 @@
   </ItemGroup>
 
   <ItemGroup Condition="'$(Configuration)'=='Release'" >
-    <PackageReference Include="Recrovit.RecroGridFramework.Abstraction" Version="1.2.0"/>
+    <PackageReference Include="Recrovit.RecroGridFramework.Abstraction" Version="1.3.0"/>
   </ItemGroup>
 
   <ItemGroup Condition="'$(Configuration)'=='Debug'" >

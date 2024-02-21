@@ -16,7 +16,7 @@ public interface IRgListHandler
     RgfEntity EntityDesc { get; }
     BasePermissions CRUD { get; }
 
-    ObservableProperty<List<RgfDynamicDictionary>> GridData { get; }
+    ObservableProperty<List<RgfDynamicDictionary>> ListDataSource { get; }
     bool IsFiltered { get; }
     bool IsLoading { get; }
 
@@ -128,7 +128,7 @@ internal class RgListHandler : IDisposable, IRgListHandler
     public bool IsFiltered => ListParam.UserFilter?.Any() == true;
     public bool IsLoading { get; set; }
 
-    public ObservableProperty<List<RgfDynamicDictionary>> GridData { get; private set; } = new(new List<RgfDynamicDictionary>(), nameof(GridData));
+    public ObservableProperty<List<RgfDynamicDictionary>> ListDataSource { get; private set; } = new(new List<RgfDynamicDictionary>(), nameof(ListDataSource));
 
     public async Task<List<RgfDynamicDictionary>> GetDataListAsync()
     {
@@ -152,7 +152,7 @@ internal class RgListHandler : IDisposable, IRgListHandler
                     TryGetCacheData(page, out list);
                 }
             }
-            GridData.Value = list;
+            ListDataSource.Value = list;
         }
         finally
         {
@@ -194,10 +194,10 @@ internal class RgListHandler : IDisposable, IRgListHandler
         return await _manager.CallCustomFunctionAsync(param);
     }
 
-    public async Task PageChangingAsync(ObservablePropertyEventArgs<int> args)
+    public Task PageChangingAsync(ObservablePropertyEventArgs<int> args)
     {
         ListParam.Skip = (args.NewData - 1) * PageSize.Value;
-        await GetDataListAsync();
+        return GetDataListAsync();
     }
 
     public async Task<bool> SetSortAsync(Dictionary<string, int> sort)

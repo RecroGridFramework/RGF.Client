@@ -61,23 +61,52 @@ internal class RgFormHandler : IRgFormHandler
         }
 
         bool isNewEntry = formResult?.EntityKey?.Keys.Any() != true;
+        var flexWidthEntity = _manager.EntityDesc.Options?.GetIntValue("RGO_FormFlexColumnWidth", 6) ?? 6;
         Dictionary<string, object?> data = new();
         foreach (var tab in form.FormTabs)
         {
+            var flexWidthTab = _manager.EntityDesc.Options?.GetIntValue($"RGO_FormFlexColumnWidth-{tab.Index}", 0) ?? 0;
             foreach (var group in tab.Groups)
             {
-                if (group.Properties.Count == 1)
+                var flexWidthGroup = _manager.EntityDesc.Options?.GetIntValue($"RGO_FormFlexColumnWidth-{tab.Index}-{group.Index}", 0) ?? 0;
+                if (flexWidthGroup > 0)
                 {
-                    group.FlexColumnWidth = 12;
+                    group.FlexColumnWidth = flexWidthGroup;
+                }
+                else
+                {
+                    group.FlexColumnWidth = flexWidthTab > 0 ? flexWidthTab : flexWidthEntity;
+                    if (group.Properties.Count == 1)
+                    {
+                        var prop = group.Properties.Single();
+                        prop.EntityDesc = _manager.EntityDesc;
+                        if (prop.PropertyDesc == null)
+                        {
+                            prop.PropertyDesc = prop.EntityDesc.Properties.SingleOrDefault(e => e.Id == prop.Id);
+                        }
+                        switch (prop.PropertyDesc?.FormType)
+                        {
+                            case PropertyFormType.TextBox:
+                            case PropertyFormType.CheckBox:
+                            case PropertyFormType.DropDown:
+                            case PropertyFormType.Date:
+                            case PropertyFormType.DateTime:
+                                break;
+
+                            default:
+                                group.FlexColumnWidth = 12;
+                                break;
+                        }
+                    }
                 }
             }
         }
         foreach (var prop in form.FormTabs.SelectMany(e => e.Groups.SelectMany(g => g.Properties)))
         {
             prop.EntityDesc = _manager.EntityDesc;
-            prop.PropertyDesc = prop.EntityDesc.Properties.SingleOrDefault(e => e.Id == prop.Id);
-            var width = prop.PropertyDesc?.Options?.GetLongValue("RGO_FormFlexColumnWidth") ?? 0;
-            prop.FlexColumnWidth = width > 0 ? (int)width : null;
+            prop.PropertyDesc ??= prop.EntityDesc.Properties.SingleOrDefault(e => e.Id == prop.Id);
+            var flexWidth = prop.PropertyDesc?.Options?.GetIntValue("RGO_FormFlexColumnWidth", 0) ?? 0;
+            prop.FlexColumnWidth = flexWidth > 0 ? (int)flexWidth : null;
 
             if (prop.Alias != null)
             {
@@ -142,7 +171,7 @@ internal class RgFormHandler : IRgFormHandler
         foreach (var name in formViewData.DataRec.GetDynamicMemberNames())
         {
             var prop = _manager.EntityDesc.Properties.SingleOrDefault(e => e.Alias.Equals(name, StringComparison.OrdinalIgnoreCase));
-            if (prop != null)
+            if (prop != null && prop.FormType != PropertyFormType.RecroGrid && prop.FormType != PropertyFormType.ImageInDB)
             {
                 var newData = formViewData.DataRec.GetItemData(name);
                 var orig = origProps.SingleOrDefault(e => e.Id == prop.Id);

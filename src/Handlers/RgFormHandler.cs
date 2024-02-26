@@ -144,7 +144,7 @@ internal class RgFormHandler : IRgFormHandler
             }
         }
 
-        var dataRec = RgfDynamicDictionary.Create(_logger, _manager.EntityDesc, data);
+        var dataRec = RgfDynamicDictionary.Create(_manager.ServiceProvider.GetRequiredService<ILogger<RgfDynamicDictionary>>(), _manager.EntityDesc, data);
         formViewData = new FormViewData(form.FormTabs, dataRec)
         {
             EntityKey = formResult?.EntityKey,

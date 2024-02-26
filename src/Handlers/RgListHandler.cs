@@ -491,9 +491,10 @@ internal class RgListHandler : IDisposable, IRgListHandler
             }
             else
             {
+                var logger = _manager.ServiceProvider.GetRequiredService<ILogger<RgfDynamicDictionary>>();
                 for (int index = 0; index < pageData.Length; index++)
                 {
-                    var row2 = RgfDynamicDictionary.Create(_logger, EntityDesc, DataColumns, pageData[index], true);
+                    var row2 = RgfDynamicDictionary.Create(logger, EntityDesc, DataColumns, pageData[index], true);
                     var ekey2 = GetEKey(row2);
                     if (ekey.Equals(ekey2))
                     {
@@ -578,9 +579,10 @@ internal class RgListHandler : IDisposable, IRgListHandler
         list = new List<RgfDynamicDictionary>();
         if (_dataCache.TryGetData(page, out var pageData) && pageData != null)
         {
+            var logger = _manager.ServiceProvider.GetRequiredService<ILogger<RgfDynamicDictionary>>();
             foreach (var item in pageData)
             {
-                var dict = RgfDynamicDictionary.Create(_logger, EntityDesc, DataColumns, item, true);
+                var dict = RgfDynamicDictionary.Create(logger, EntityDesc, DataColumns, item, true);
                 list.Add(dict);
             }
             return true;

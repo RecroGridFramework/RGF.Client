@@ -26,20 +26,35 @@ public interface IRgListHandler
     string? QueryString { get; }
 
     void Dispose();
+
     Task<List<RgfDynamicDictionary>> GetDataListAsync();
-    Task<RgfResult<RgfCustomFunctionResult>> CallCustomFunctionAsync(string functionName, bool requireQueryParams = false, Dictionary<string, object>? customParams = null);
+
+    Task<RgfResult<RgfCustomFunctionResult>> CallCustomFunctionAsync(string functionName, bool requireQueryParams = false, Dictionary<string, object>? customParams = null, RgfEntityKey? entityKey = null);
+
     RgfDynamicDictionary GetEKey(RgfDynamicDictionary data);
+
     void InitFilter(RgfFilter.Condition[] conditions);
+
     Task PageChangingAsync(ObservablePropertyEventArgs<int> args);
+
     Task RefreshDataAsync();
+
     Task SetFilterAsync(RgfFilter.Condition[] conditions, int? queryTimeout);
+
     Task<bool> SetSortAsync(Dictionary<string, int> sort);
+
     Task<bool> SetVisibleColumnsAsync(IEnumerable<GridColumnSettings> columnSettings);
+
     void ReplaceColumnWidth(int index, int width);
+
     void ReplaceColumnWidth(string alias, int width);
+
     Task MoveColumnAsync(int oldIndex, int newIndex, bool refresh = true);
+
     IEnumerable<int> UserColumns { get; }
+
     RgfGridSettings GetGridSettings();
+
     bool GetEntityKey(RgfDynamicDictionary gridDataRec, out RgfEntityKey? entityKey);
 }
 
@@ -174,12 +189,13 @@ internal class RgListHandler : IDisposable, IRgListHandler
         }
     }
 
-    public async Task<RgfResult<RgfCustomFunctionResult>> CallCustomFunctionAsync(string functionName, bool requireQueryParams = false, Dictionary<string, object>? customParams = null)
+    public async Task<RgfResult<RgfCustomFunctionResult>> CallCustomFunctionAsync(string functionName, bool requireQueryParams = false, Dictionary<string, object>? customParams = null, RgfEntityKey? entityKey = null)
     {
         var param = new RgfGridRequest(_manager.SessionParams)
         {
             EntityName = _manager.EntityDesc.EntityName,
-            SessionId = _manager.SessionParams.SessionId
+            SessionId = _manager.SessionParams.SessionId,
+            EntityKey = entityKey
         };
         param.FunctionName = functionName;
         if (requireQueryParams)

@@ -4,10 +4,11 @@ namespace Recrovit.RecroGridFramework.Client.Events;
 
 public class RgfMenuEventArgs : EventArgs
 {
-    public RgfMenuEventArgs(string command, RgfMenuType menuType = RgfMenuType.Invalid, RgfDynamicDictionary? data = null)
+    public RgfMenuEventArgs(string command, RgfMenuType menuType = RgfMenuType.Invalid, RgfEntityKey? entityKey = null, RgfDynamicDictionary? data = null)
     {
         Command = command;
         MenuType = menuType;
+        EntityKey = entityKey;
         Data = data ?? new();
     }
 
@@ -15,5 +16,7 @@ public class RgfMenuEventArgs : EventArgs
 
     public RgfMenuType MenuType { get; }
 
-    public RgfDynamicDictionary Data { get; }
+    public RgfEntityKey? EntityKey { get;}
+
+    public RgfDynamicDictionary Data { get;}
 }

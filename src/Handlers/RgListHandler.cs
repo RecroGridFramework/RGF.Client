@@ -31,7 +31,11 @@ public interface IRgListHandler
 
     Task<RgfResult<RgfCustomFunctionResult>> CallCustomFunctionAsync(string functionName, bool requireQueryParams = false, Dictionary<string, object>? customParams = null, RgfEntityKey? entityKey = null);
 
-    RgfDynamicDictionary GetEKey(RgfDynamicDictionary data);
+    RgfDynamicDictionary GetEKey(RgfDynamicDictionary rowData);
+
+    bool GetEntityKey(RgfDynamicDictionary rowData, out RgfEntityKey? entityKey);
+
+    int GetRowIndex(RgfDynamicDictionary rowData);
 
     void InitFilter(RgfFilter.Condition[] conditions);
 
@@ -54,8 +58,6 @@ public interface IRgListHandler
     IEnumerable<int> UserColumns { get; }
 
     RgfGridSettings GetGridSettings();
-
-    bool GetEntityKey(RgfDynamicDictionary gridDataRec, out RgfEntityKey? entityKey);
 }
 
 internal class RgListHandler : IDisposable, IRgListHandler
@@ -117,6 +119,7 @@ internal class RgListHandler : IDisposable, IRgListHandler
     }
 
     public static Task<RgListHandler> CreateAsync(IRgManager manager, string entityName) => CreateAsync(manager, new RgfGridRequest() { EntityName = entityName });
+
     public static async Task<RgListHandler> CreateAsync(IRgManager manager, RgfGridRequest param)
     {
         var logger = manager.ServiceProvider.GetRequiredService<ILogger<RgListHandler>>();
@@ -134,6 +137,7 @@ internal class RgListHandler : IDisposable, IRgListHandler
             CRUD = new RgfPermissions(_entityDesc.CRUD).BasePermissions;
         }
     }
+
     public BasePermissions CRUD { get; private set; }
 
     public ObservableProperty<int> ItemCount { get; private set; } = new(-1, nameof(ItemCount));
@@ -379,19 +383,27 @@ internal class RgListHandler : IDisposable, IRgListHandler
         return ekey;
     }
 
-    public bool GetEntityKey(RgfDynamicDictionary gridDataRec, out RgfEntityKey? entityKey)
+    public bool GetEntityKey(RgfDynamicDictionary rowData, out RgfEntityKey? entityKey)
     {
-        if (gridDataRec.TryGetMember("__rgparams", out object? rgparams)
-            && rgparams is Dictionary<string, object> par)
+        var rgparams = rowData.Get<Dictionary<string, object>>("__rgparams");
+        if (rgparams?.TryGetValue("keySign", out var k) == true)
         {
-            if (par.TryGetValue("keySign", out var k))
-            {
-                entityKey = new RgfEntityKey() { Keys = GetEKey(gridDataRec), Signature = k.ToString() };
-                return true;
-            }
+            entityKey = new RgfEntityKey() { Keys = GetEKey(rowData), Signature = k.ToString() };
+            return true;
         }
         entityKey = null;
         return false;
+    }
+
+    public int GetRowIndex(RgfDynamicDictionary rowData)
+    {
+        int idx = -1;
+        var rgparams = rowData.Get<Dictionary<string, object>>("__rgparams");
+        if (rgparams?.TryGetValue("rowIndex", out var rowIndex) == true)
+        {
+            int.TryParse(rowIndex.ToString(), out idx);
+        }
+        return idx;
     }
 
     public RgfGridSettings GetGridSettings()
@@ -418,7 +430,7 @@ internal class RgListHandler : IDisposable, IRgListHandler
 
     private DataCache _dataCache { get; set; } = new DataCache(0);
 
-    private int[] SelectedItems { get; set; } = new int[0];
+    private int[] SelectedItems { get; set; } = [];
 
     private Dictionary<string, object> Options { get; set; } = new();
 
@@ -580,10 +592,13 @@ internal class RgListHandler : IDisposable, IRgListHandler
         if (_dataCache.TryGetData(page, out var pageData) && pageData != null)
         {
             var logger = _manager.ServiceProvider.GetRequiredService<ILogger<RgfDynamicDictionary>>();
+            int idx = this.PageSize.Value * page + 1;
             foreach (var item in pageData)
             {
-                var dict = RgfDynamicDictionary.Create(logger, EntityDesc, DataColumns, item, true);
-                list.Add(dict);
+                var rowData = RgfDynamicDictionary.Create(logger, EntityDesc, DataColumns, item, true);
+                var rgparams = rowData.GetOrNew<Dictionary<string, object>>("__rgparams");
+                rgparams["rowIndex"] = idx++;
+                list.Add(rowData);
             }
             return true;
         }

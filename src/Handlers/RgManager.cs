@@ -5,6 +5,7 @@ using Recrovit.RecroGridFramework.Abstraction.Contracts.Services;
 using Recrovit.RecroGridFramework.Abstraction.Extensions;
 using Recrovit.RecroGridFramework.Abstraction.Models;
 using Recrovit.RecroGridFramework.Client.Events;
+using Recrovit.RecroGridFramework.Client.Models;
 using Recrovit.RecroGridFramework.Client.Services;
 using System.ComponentModel;
 
@@ -23,7 +24,7 @@ public interface IRgManager : IDisposable
     RgfEntity EntityDesc { get; }
 
     ObservableProperty<List<RgfDynamicDictionary>> SelectedItems { get; }
-    ObservableProperty<RgfEntityKey?> FormDataKey { get; }
+    ObservableProperty<FormViewKey?> FormViewKey { get; }
     RgfSelectParam? SelectParam { get; }
 
     ObservableProperty<int> ItemCount { get; }
@@ -105,7 +106,7 @@ public class RgManager : IRgManager
     public RgfEntity EntityDesc => ListHandler.EntityDesc;
 
     public ObservableProperty<List<RgfDynamicDictionary>> SelectedItems { get; private set; } = new(new(), nameof(SelectedItems));
-    public ObservableProperty<RgfEntityKey?> FormDataKey { get; private set; } = new(new(), nameof(FormDataKey));
+    public ObservableProperty<FormViewKey?> FormViewKey { get; private set; } = new(new(), nameof(FormViewKey));
     public RgfSelectParam? SelectParam { get; private set; }
 
     public ObservableProperty<int> ItemCount => ListHandler.ItemCount;
@@ -347,7 +348,7 @@ public class RgManager : IRgManager
             case ToolbarAction.Add:
                 if (ListHandler.CRUD.Add && EntityDesc.Options.GetBoolValue("RGO_NoDetails") != true)
                 {
-                    FormDataKey.Value = new RgfEntityKey();
+                    FormViewKey.Value = new(new RgfEntityKey());
                 }
                 break;
 
@@ -358,7 +359,7 @@ public class RgManager : IRgManager
                     var data = SelectedItems.Value.SingleOrDefault();
                     if (data != null && ListHandler.GetEntityKey(data, out var entityKey))
                     {
-                        FormDataKey.Value = entityKey;
+                        FormViewKey.Value = new(entityKey!, ListHandler.GetRowIndex(data));
                     }
                 }
                 break;

@@ -1,4 +1,5 @@
-﻿
+﻿using Recrovit.RecroGridFramework.Abstraction.Models;
+
 namespace Recrovit.RecroGridFramework.Client.Events;
 
 public enum ToolbarAction
@@ -23,15 +24,18 @@ public enum ToolbarAction
     QuickWatch,
     ExportCsv,
 
-    RgfAbout,
+    RgfAbout
 }
 
 public class RgfToolbarEventArgs : EventArgs
 {
-    public RgfToolbarEventArgs(ToolbarAction command)
+    public RgfToolbarEventArgs(ToolbarAction command, RgfDynamicDictionary? data = null)
     {
         Command = command;
+        Data = data;
     }
 
     public ToolbarAction Command { get; }
+
+    public RgfDynamicDictionary? Data { get; }
 }

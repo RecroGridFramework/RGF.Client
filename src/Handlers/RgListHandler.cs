@@ -35,7 +35,9 @@ public interface IRgListHandler
 
     bool GetEntityKey(RgfDynamicDictionary rowData, out RgfEntityKey? entityKey);
 
-    int GetRowIndex(RgfDynamicDictionary rowData);
+    int GetAbsoluteRowIndex(RgfDynamicDictionary rowData);
+
+    int GetRelativeRowIndex(RgfDynamicDictionary rowData);
 
     void InitFilter(RgfFilter.Condition[] conditions);
 
@@ -58,6 +60,8 @@ public interface IRgListHandler
     IEnumerable<int> UserColumns { get; }
 
     RgfGridSettings GetGridSettings();
+
+    Task<RgfDynamicDictionary?> EnsureVisibleAsync(int index);
 }
 
 internal class RgListHandler : IDisposable, IRgListHandler
@@ -149,10 +153,33 @@ internal class RgListHandler : IDisposable, IRgListHandler
 
     public ObservableProperty<List<RgfDynamicDictionary>> ListDataSource { get; private set; } = new(new List<RgfDynamicDictionary>(), nameof(ListDataSource));
 
+    private SemaphoreSlim _lock = new SemaphoreSlim(1, 1);
+    private int _lockThreadId;
+
+    private async Task<bool> Lock()
+    {
+        if (Thread.CurrentThread.ManagedThreadId != _lockThreadId)
+        {
+            await _lock.WaitAsync();
+            _lockThreadId = Thread.CurrentThread.ManagedThreadId;
+        }
+        return true;
+    }
+
+    private void Unlock()
+    {
+        if (Thread.CurrentThread.ManagedThreadId != _lockThreadId)
+        {
+            throw new InvalidOperationException();
+        }
+        _lockThreadId = 0;
+        _lock.Release();
+    }
     public async Task<List<RgfDynamicDictionary>> GetDataListAsync()
     {
         IsLoading = true;
-        List<RgfDynamicDictionary> list = new();
+        await Lock();
+        var list = new List<RgfDynamicDictionary>();
         try
         {
             if (_initialized)
@@ -171,10 +198,11 @@ internal class RgListHandler : IDisposable, IRgListHandler
                     TryGetCacheData(page, out list);
                 }
             }
-            ListDataSource.Value = list;
+            await ListDataSource.SetValueAsync(list);
         }
         finally
         {
+            Unlock();
             IsLoading = false;
         }
         return list;
@@ -395,15 +423,42 @@ internal class RgListHandler : IDisposable, IRgListHandler
         return false;
     }
 
-    public int GetRowIndex(RgfDynamicDictionary rowData)
+    public int GetAbsoluteRowIndex(RgfDynamicDictionary rowData)
     {
         int idx = -1;
-        var rgparams = rowData.Get<Dictionary<string, object>>("__rgparams");
-        if (rgparams?.TryGetValue("rowIndex", out var rowIndex) == true)
+        if (rowData != null)
         {
-            int.TryParse(rowIndex.ToString(), out idx);
+            var rgparams = rowData.Get<Dictionary<string, object>>("__rgparams");
+            if (rgparams?.TryGetValue("rowIndex", out var rowIndex) == true)
+            {
+                int.TryParse(rowIndex.ToString(), out idx);
+            }
         }
         return idx;
+    }
+
+    public int GetRelativeRowIndex(RgfDynamicDictionary rowData)
+    {
+        int idx = GetAbsoluteRowIndex(rowData);
+        if (idx != -1)
+        {
+            idx -= (ActivePage.Value - 1) * PageSize.Value;
+        }
+        return idx;
+    }
+
+    public async Task<RgfDynamicDictionary?> EnsureVisibleAsync(int index)
+    {
+        int idx = index >= 0 && index < ItemCount.Value ? index : throw new ArgumentOutOfRangeException(nameof(index));
+        int first = (ActivePage.Value - 1) * PageSize.Value;
+        if (idx < first || idx >= first + PageSize.Value)
+        {
+            _logger.LogDebug("EnsureVisibleAsync: {index}", index);
+            int page = idx / PageSize.Value + 1;
+            await ActivePage.SetValueAsync(page);
+            first = (ActivePage.Value - 1) * PageSize.Value;
+        }
+        return ListDataSource.Value[index - first];
     }
 
     public RgfGridSettings GetGridSettings()
@@ -592,7 +647,7 @@ internal class RgListHandler : IDisposable, IRgListHandler
         if (_dataCache.TryGetData(page, out var pageData) && pageData != null)
         {
             var logger = _manager.ServiceProvider.GetRequiredService<ILogger<RgfDynamicDictionary>>();
-            int idx = this.PageSize.Value * page + 1;
+            int idx = this.PageSize.Value * page;
             foreach (var item in pageData)
             {
                 var rowData = RgfDynamicDictionary.Create(logger, EntityDesc, DataColumns, item, true);

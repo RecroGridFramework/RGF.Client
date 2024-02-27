@@ -333,10 +333,10 @@ public class RgManager : IRgManager
         }
     }
 
-    protected virtual async Task OnToolbarCommandAsync(IRgfEventArgs<RgfToolbarEventArgs> args)
+    protected virtual async Task OnToolbarCommandAsync(IRgfEventArgs<RgfToolbarEventArgs> arg)
     {
-        _logger.LogDebug("OnToolbarCommand: {cmd}", args.Args.Command);
-        switch (args.Args.Command)
+        _logger.LogDebug("OnToolbarCommand: {cmd}", arg.Args.Command);
+        switch (arg.Args.Command)
         {
             case ToolbarAction.Refresh:
                 await ListHandler.RefreshDataAsync();
@@ -359,7 +359,7 @@ public class RgManager : IRgManager
                     var data = SelectedItems.Value.SingleOrDefault();
                     if (data != null && ListHandler.GetEntityKey(data, out var entityKey))
                     {
-                        FormViewKey.Value = new(entityKey!, ListHandler.GetRowIndex(data));
+                        FormViewKey.Value = new(entityKey!, ListHandler.GetAbsoluteRowIndex(data));
                     }
                 }
                 break;

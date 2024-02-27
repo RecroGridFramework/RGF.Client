@@ -11,8 +11,13 @@ namespace Recrovit.RecroGridFramework.Client.Handlers;
 public interface IRgFormHandler : IDisposable
 {
     Task<RgfResult<RgfFormResult>> InitializeAsync(RgfEntityKey data);
+
     bool InitFormData(RgfFormResult formResult, out FormViewData? formViewData);
+
+    RgfDynamicDictionary CollectChangedFormData(FormViewData formViewData);
+
     Task<RgfResult<RgfFormResult>> SaveAsync(FormViewData formViewData, bool skeleton = false);
+
     bool IsModified(FormViewData formViewData, RgfForm.Property property);
 }
 
@@ -163,45 +168,9 @@ internal class RgFormHandler : IRgFormHandler
         {
             param.Skeleton = true;
         }
-        param.Data = new();
 
         bool isNewRow = param.EntityKey?.Keys.Any() != true;
-
-        var origProps = formViewData.FormTabs.SelectMany(tab => tab.Groups.SelectMany(g => g.Properties)).ToArray();
-        foreach (var name in formViewData.DataRec.GetDynamicMemberNames())
-        {
-            var prop = _manager.EntityDesc.Properties.SingleOrDefault(e => e.Alias.Equals(name, StringComparison.OrdinalIgnoreCase));
-            if (prop != null && prop.FormType != PropertyFormType.RecroGrid && prop.FormType != PropertyFormType.ImageInDB)
-            {
-                var newData = formViewData.DataRec.GetItemData(name);
-                var orig = origProps.SingleOrDefault(e => e.Id == prop.Id);
-                _logger.LogDebug("SaveData: name:{name}={new}", name, newData);
-                if (orig != null)
-                {
-                    if (orig.ForeignEntity?.EntityKeys.Any() == true)
-                    {
-                        var ek = orig.ForeignEntity?.EntityKeys.First();
-                        var fkProp = _manager.EntityDesc.Properties.SingleOrDefault(e => e.Id == ek!.Foreign);
-                        if (fkProp != null && formViewData.DataRec.GetItemData(fkProp.Alias).Value != null)
-                        {
-                            //The key is also provided, so we omit the filter string.
-                            _logger.LogDebug("SaveData.Skip: name:{name}", name);
-                            continue;
-                        }
-                    }
-                    var origData = new RgfDynamicData(prop.ClientDataType, orig.OrigValue);
-                    if (!origData.Equals(newData))
-                    {
-                        _logger.LogDebug("SaveData.ChangeData: name:{name}, new:{new}, orig:{orig}", name, newData, origData);
-                        param.Data.SetMember(prop.ClientName, newData.ToString());
-                    }
-                }
-                else if (newData?.Value != null)
-                {
-                    param.Data.SetMember(prop.ClientName, newData.ToString());
-                }
-            }
-        }
+        param.Data = CollectChangedFormData(formViewData);
         if (!param.Data.Any())
         {
             return new RgfResult<RgfFormResult>() { Success = !isNewRow };
@@ -213,6 +182,47 @@ internal class RgFormHandler : IRgFormHandler
             _manager.NotificationManager.RaiseEvent(arg, this);
         }
         return res;
+    }
+
+    public RgfDynamicDictionary CollectChangedFormData(FormViewData formViewData)
+    {
+        var changes = new RgfDynamicDictionary();
+        var origProps = formViewData.FormTabs.SelectMany(tab => tab.Groups.SelectMany(g => g.Properties)).ToArray();
+        foreach (var name in formViewData.DataRec.GetDynamicMemberNames())
+        {
+            var prop = _manager.EntityDesc.Properties.SingleOrDefault(e => e.Alias.Equals(name, StringComparison.OrdinalIgnoreCase));
+            if (prop != null && prop.FormType != PropertyFormType.RecroGrid && prop.FormType != PropertyFormType.ImageInDB)
+            {
+                var newData = formViewData.DataRec.GetItemData(name);
+                var orig = origProps.SingleOrDefault(e => e.Id == prop.Id);
+                _logger.LogTrace("ChangedFormData.Chk: name:{name}={new}", name, newData);
+                if (orig != null)
+                {
+                    if (orig.ForeignEntity?.EntityKeys.Any() == true)
+                    {
+                        var ek = orig.ForeignEntity?.EntityKeys.First();
+                        var fkProp = _manager.EntityDesc.Properties.SingleOrDefault(e => e.Id == ek!.Foreign);
+                        if (fkProp != null && formViewData.DataRec.GetItemData(fkProp.Alias).Value != null)
+                        {
+                            //The key is also provided, so we omit the filter string.
+                            _logger.LogDebug("ChangedFormData.Skip: name:{name}", name);
+                            continue;
+                        }
+                    }
+                    var origData = new RgfDynamicData(prop.ClientDataType, orig.OrigValue);
+                    if (!origData.Equals(newData))
+                    {
+                        _logger.LogDebug("ChangedFormData: name:{name}, new:{new}, orig:{orig}", name, newData, origData);
+                        changes.SetMember(prop.ClientName, newData.ToString());
+                    }
+                }
+                else if (newData?.Value != null)
+                {
+                    changes.SetMember(prop.ClientName, newData.ToString());
+                }
+            }
+        }
+        return changes;
     }
 
     public bool IsModified(FormViewData formViewData, RgfForm.Property property)

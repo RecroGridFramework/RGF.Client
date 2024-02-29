@@ -179,7 +179,7 @@ internal class RgFormHandler : IRgFormHandler
         if (res.Success && res.Result?.GridResult != null
             && RgfListViewEventArgs.Create(isNewRow ? ListViewAction.AddRow : ListViewAction.RefreshRow, res.Result.GridResult, out var arg))
         {
-            _manager.NotificationManager.RaiseEvent(arg, this);
+            await _manager.NotificationManager.RaiseEventAsync(arg, this);
         }
         return res;
     }

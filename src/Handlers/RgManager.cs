@@ -133,7 +133,7 @@ public class RgManager : IRgManager
             var res = await _rgfService.GetFilterAsync(new RgfGridRequest(SessionParams));
             if (!res.Success)
             {
-                NotificationManager.RaiseEvent(new RgfUserMessage(RecroDict, UserMessageType.Error, res.ErrorMessage), this);
+                await NotificationManager.RaiseEventAsync(new RgfUserMessage(RecroDict, UserMessageType.Error, res.ErrorMessage), this);
             }
             else
             {
@@ -164,7 +164,7 @@ public class RgManager : IRgManager
         var res = await _rgfService.SavePredefinedFilterAsync(param);
         if (!res.Success)
         {
-            NotificationManager.RaiseEvent(new RgfUserMessage(RecroDict, UserMessageType.Error, res.ErrorMessage), this);
+            await NotificationManager.RaiseEventAsync(new RgfUserMessage(RecroDict, UserMessageType.Error, res.ErrorMessage), this);
         }
         return res.Result;
     }
@@ -175,7 +175,7 @@ public class RgManager : IRgManager
         var res = await _rgfService.GetRecroGridAsync(param);
         if (!res.Success)
         {
-            NotificationManager.RaiseEvent(new RgfUserMessage(RecroDict, UserMessageType.Error, res.ErrorMessage), this);
+            await NotificationManager.RaiseEventAsync(new RgfUserMessage(RecroDict, UserMessageType.Error, res.ErrorMessage), this);
         }
         else if (res.Result.Success)
         {
@@ -196,7 +196,7 @@ public class RgManager : IRgManager
         var res = await _rgfService.CallCustomFunctionAsync(param);
         if (!res.Success)
         {
-            NotificationManager.RaiseEvent(new RgfUserMessage(RecroDict, UserMessageType.Error, res.ErrorMessage), this);
+            await NotificationManager.RaiseEventAsync(new RgfUserMessage(RecroDict, UserMessageType.Error, res.ErrorMessage), this);
         }
         return res.Result;
     }
@@ -214,7 +214,7 @@ public class RgManager : IRgManager
         var res = await _rgfService.GetResourceAsync<ResultType>(name, query);
         if (!res.Success)
         {
-            NotificationManager.RaiseEvent(new RgfUserMessage(RecroDict, UserMessageType.Error, res.ErrorMessage), this);
+            await NotificationManager.RaiseEventAsync(new RgfUserMessage(RecroDict, UserMessageType.Error, res.ErrorMessage), this);
         }
         return res.Result;
     }
@@ -240,7 +240,7 @@ public class RgManager : IRgManager
         var res = await _rgfService.SaveColumnSettingsAsync(param);
         if (!res.Success)
         {
-            NotificationManager.RaiseEvent(new RgfUserMessage(RecroDict, UserMessageType.Error, res.ErrorMessage), this);
+            await NotificationManager.RaiseEventAsync(new RgfUserMessage(RecroDict, UserMessageType.Error, res.ErrorMessage), this);
         }
         else
         {
@@ -264,7 +264,7 @@ public class RgManager : IRgManager
         var res = await _rgfService.GetFormAsync(param);
         if (!res.Success)
         {
-            NotificationManager.RaiseEvent(new RgfUserMessage(RecroDict, UserMessageType.Error, res.ErrorMessage), this);
+            await NotificationManager.RaiseEventAsync(new RgfUserMessage(RecroDict, UserMessageType.Error, res.ErrorMessage), this);
         }
         return res.Result;
     }
@@ -275,7 +275,7 @@ public class RgManager : IRgManager
         var res = await _rgfService.UpdateDataAsync(param);
         if (!res.Success)
         {
-            NotificationManager.RaiseEvent(new RgfUserMessage(RecroDict, UserMessageType.Error, res.ErrorMessage), this);
+            await NotificationManager.RaiseEventAsync(new RgfUserMessage(RecroDict, UserMessageType.Error, res.ErrorMessage), this);
         }
         return res.Result;
     }
@@ -289,13 +289,13 @@ public class RgManager : IRgManager
         var res = await _rgfService.DeleteDataAsync(param);
         if (!res.Success)
         {
-            NotificationManager.RaiseEvent(new RgfUserMessage(RecroDict, UserMessageType.Error, res.ErrorMessage), this);
+            await NotificationManager.RaiseEventAsync(new RgfUserMessage(RecroDict, UserMessageType.Error, res.ErrorMessage), this);
         }
         else
         {
             if (res.Result.Success)
             {
-                NotificationManager.RaiseEvent(new RgfListViewEventArgs(ListViewAction.DeleteRow, entityKey.Keys), this);
+                await NotificationManager.RaiseEventAsync(new RgfListViewEventArgs(ListViewAction.DeleteRow, entityKey.Keys), this);
             }
             BroadcastMessages(res.Result.Messages, this);
         }
@@ -313,21 +313,21 @@ public class RgManager : IRgManager
             {
                 foreach (var item in messages.Error)
                 {
-                    NotificationManager.RaiseEvent(new RgfUserMessage(RecroDict, UserMessageType.Error, item.Value), sender);
+                    _ = NotificationManager.RaiseEventAsync(new RgfUserMessage(RecroDict, UserMessageType.Error, item.Value), sender);
                 }
             }
             if (messages.Warning != null)
             {
                 foreach (var item in messages.Warning)
                 {
-                    NotificationManager.RaiseEvent(new RgfUserMessage(RecroDict, UserMessageType.Warning, item.Value), sender);
+                    _ = NotificationManager.RaiseEventAsync(new RgfUserMessage(RecroDict, UserMessageType.Warning, item.Value), sender);
                 }
             }
             if (messages.Info != null)
             {
                 foreach (var item in messages.Info)
                 {
-                    NotificationManager.RaiseEvent(new RgfUserMessage(RecroDict, UserMessageType.Information, item.Value), sender);
+                    _ = NotificationManager.RaiseEventAsync(new RgfUserMessage(RecroDict, UserMessageType.Information, item.Value), sender);
                 }
             }
         }
@@ -417,7 +417,7 @@ public class RgManager : IRgManager
         var res = await _rgfService.GetAboutAsync();
         if (!res.Success)
         {
-            NotificationManager.RaiseEvent(new RgfUserMessage(RecroDict, UserMessageType.Error, res.ErrorMessage), this);
+            await NotificationManager.RaiseEventAsync(new RgfUserMessage(RecroDict, UserMessageType.Error, res.ErrorMessage), this);
         }
         return res.Result ?? "";
     }

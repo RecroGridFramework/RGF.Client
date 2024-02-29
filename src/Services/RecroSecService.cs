@@ -14,6 +14,7 @@ namespace Recrovit.RecroGridFramework.Client.Services;
 internal class RecroSecServiceOptions
 {
     public string AdministratorRoleName { get; set; } = "Administrators";
+    public string? RoleClaimType { get; set; }
 }
 
 internal class RecroSecService : IRecroSecService, IDisposable
@@ -124,9 +125,9 @@ internal class RecroSecService : IRecroSecService, IDisposable
             if (IsAuthenticated)
             {
                 var identities = CurrentUser.Identities.ToArray();
-                for (int i = 0; i < identities.Count(); i++)
+                for (int i = 0; i < identities.Length; i++)
                 {
-                    var roleClaim = identities[i].RoleClaimType;
+                    var roleClaim = _options.RoleClaimType ?? identities[i].RoleClaimType;
                     var roles = identities[i].Claims.Where(e => e.Type == roleClaim).Select(e => e.Value).ToArray();
                     if (roles.Length == 1 && roles[0].StartsWith('[') && roles[0].EndsWith(']'))
                     {

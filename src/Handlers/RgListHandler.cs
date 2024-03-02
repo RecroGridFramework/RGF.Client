@@ -153,35 +153,12 @@ internal class RgListHandler : IDisposable, IRgListHandler
 
     public ObservableProperty<List<RgfDynamicDictionary>> ListDataSource { get; private set; } = new(new List<RgfDynamicDictionary>(), nameof(ListDataSource));
 
-    private SemaphoreSlim _lock = new SemaphoreSlim(1, 1);
-    private int _lockThreadId;
-
-    private async Task<bool> Lock()
-    {
-        if (Thread.CurrentThread.ManagedThreadId != _lockThreadId)
-        {
-            await _lock.WaitAsync();
-            _lockThreadId = Thread.CurrentThread.ManagedThreadId;
-        }
-        return true;
-    }
-
-    private void Unlock()
-    {
-        if (Thread.CurrentThread.ManagedThreadId != _lockThreadId)
-        {
-            throw new InvalidOperationException();
-        }
-        _lockThreadId = 0;
-        _lock.Release();
-    }
     public async Task<List<RgfDynamicDictionary>> GetDataListAsync()
     {
-        IsLoading = true;
-        await Lock();
-        var list = new List<RgfDynamicDictionary>();
         try
         {
+            IsLoading = true;
+            var list = new List<RgfDynamicDictionary>();
             if (_initialized)
             {
                 int page = PageSize.Value > 0 ? ListParam.Skip / PageSize.Value : 0;
@@ -199,13 +176,12 @@ internal class RgListHandler : IDisposable, IRgListHandler
                 }
             }
             await ListDataSource.SetValueAsync(list);
+            return list;
         }
         finally
         {
-            Unlock();
             IsLoading = false;
         }
-        return list;
     }
 
     public async Task RefreshDataAsync()

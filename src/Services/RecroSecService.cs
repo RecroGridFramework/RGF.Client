@@ -13,7 +13,6 @@ namespace Recrovit.RecroGridFramework.Client.Services;
 
 internal class RecroSecServiceOptions
 {
-    public string AdministratorRoleName { get; set; } = "Administrators";
     public string? RoleClaimType { get; set; }
 }
 
@@ -91,33 +90,11 @@ internal class RecroSecService : IRecroSecService, IDisposable
         return prev;
     }
 
-    public bool IsAdmin
-    {
-        get
-        {
-            bool isAdmin = false;
-            if (IsAuthenticated)
-            {
-                isAdmin = CurrentUser.IsInRole(_options.AdministratorRoleName) == true;
-                if (!isAdmin)
-                {
-                    foreach (var role in UserRoles)
-                    {
-                        isAdmin = role.Contains(_options.AdministratorRoleName);
-                        if (isAdmin)
-                        {
-                            break;
-                        }
-                    }
-                }
-            }
-            return isAdmin;
-        }
-    }
+    public bool IsAdmin { get; private set; }
 
     public ClaimsPrincipal CurrentUser { get; private set; } = new();
 
-    public List<string> UserRoles
+    public List<string> RoleClaim
     {
         get
         {
@@ -145,16 +122,21 @@ internal class RecroSecService : IRecroSecService, IDisposable
 
     private async void OnAuthenticationStateChanged(Task<AuthenticationState> stateTask)
     {
+        IsAdmin = false;
         var authenticationState = await stateTask;
         CurrentUser = authenticationState.User ?? new();
         //var roles = CurrentUser.FindFirst("role")?.Value ?? CurrentUser.FindFirst("roles")?.Value : "?";
-        _logger.LogInformation("IsAuthenticated:{IsAuthenticated}, UserName:{UserName}, Roles:{Roles}", IsAuthenticated, UserName, string.Join(", ", UserRoles));
+        _logger.LogInformation("IsAuthenticated:{IsAuthenticated}, UserName:{UserName}, RoleClaims:{Roles}", IsAuthenticated, UserName, string.Join(", ", RoleClaim));
         if (IsAuthenticated)
         {
             var resp = await _apiService.GetUserStateAsync();
-            if (resp.Success && resp.Result.IsValid && !string.IsNullOrEmpty(resp.Result.Language))
+            if (resp.Success && resp.Result.IsValid)
             {
-                await SetLangAsync(resp.Result.Language);
+                IsAdmin = resp.Result.IsAdmin;
+                if (!string.IsNullOrEmpty(resp.Result.Language))
+                {
+                    await SetLangAsync(resp.Result.Language);
+                }
             }
         }
     }

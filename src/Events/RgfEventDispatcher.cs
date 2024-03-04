@@ -5,17 +5,30 @@ namespace Recrovit.RecroGridFramework.Client.Events;
 
 public class RgfEventDispatcher<TEnum, TArgs> where TEnum : Enum where TArgs : EventArgs
 {
-    private Dictionary<TEnum, EventDispatcher<IRgfEventArgs<TArgs>>> _eventHandlers = new();
+    private Dictionary<TEnum, EventDispatcher<IRgfEventArgs<TArgs>>> _eventHandlers = [];
 
-    public void Subscribe(TEnum eventName, Func<IRgfEventArgs<TArgs>, Task> handler)
+    private Dictionary<TEnum, EventDispatcher<IRgfEventArgs<TArgs>>> _defaultHandlers = [];
+
+    public void Subscribe(TEnum eventName, Func<IRgfEventArgs<TArgs>, Task> handler, bool callHandlerIfUnhandled = false)
     {
-        if (handler != null )
+        if (handler != null)
         {
             EventDispatcher<IRgfEventArgs<TArgs>>? handlers;
-            if (!_eventHandlers.TryGetValue(eventName, out handlers))
+            if (callHandlerIfUnhandled)
             {
-                handlers = new();
-                _eventHandlers.Add(eventName, handlers);
+                if (!_defaultHandlers.TryGetValue(eventName, out handlers))
+                {
+                    handlers = new();
+                    _defaultHandlers.Add(eventName, handlers);
+                }
+            }
+            else
+            {
+                if (!_eventHandlers.TryGetValue(eventName, out handlers))
+                {
+                    handlers = new();
+                    _eventHandlers.Add(eventName, handlers);
+                }
             }
             handlers.Subscribe(handler);
         }
@@ -51,14 +64,26 @@ public class RgfEventDispatcher<TEnum, TArgs> where TEnum : Enum where TArgs : E
         }
     }
 
-    public Task DispatchEventAsync(TEnum eventName, IRgfEventArgs<TArgs> args)
+    public async Task<bool> DispatchEventAsync(TEnum eventName, IRgfEventArgs<TArgs> args)
     {
         if (_eventHandlers.TryGetValue(eventName, out var handlers))
         {
-            return handlers.InvokeAsync(args);
+            await handlers.InvokeAsync(args);
         }
-        return Task.CompletedTask;
+        if (!args.Handled)
+        {
+            if (_defaultHandlers.TryGetValue(eventName, out handlers))
+            {
+                await handlers.InvokeAsync(args);
+            }
+        }
+        return args.Handled;
     }
+
+    public void Subscribe(TEnum[] eventNames, Func<IRgfEventArgs<TArgs>, Task> handler, bool callHandlerIfUnhandled = false) => Array.ForEach(eventNames, (e) => Subscribe(e, handler, callHandlerIfUnhandled));
+    public void Subscribe(TEnum[] eventNames, Action<IRgfEventArgs<TArgs>> handler, bool callHandlerIfUnhandled = false) => Array.ForEach(eventNames, (e) => Subscribe(e, handler));
+    public void Unsubscribe(TEnum[] eventNames, Func<IRgfEventArgs<TArgs>, Task> handler) => Array.ForEach(eventNames, (e) => Unsubscribe(e, handler));
+    public void Unsubscribe(TEnum[] eventNames, Action<IRgfEventArgs<TArgs>> handler) => Array.ForEach(eventNames, (e) => Unsubscribe(e, handler));
 }
 
 public class RgfEventArgs<TArgs> : IRgfEventArgs<TArgs> where TArgs : EventArgs
@@ -68,7 +93,10 @@ public class RgfEventArgs<TArgs> : IRgfEventArgs<TArgs> where TArgs : EventArgs
         Sender = sender;
         Args = args;
     }
+
     public object Sender { get; }
+
+    public bool Handled { get; set; }
 
     public TArgs Args { get; }
 }

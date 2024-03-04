@@ -6,18 +6,21 @@ namespace Recrovit.RecroGridFramework.Client.Events;
 
 public enum RgfFormEventKind
 {
+    Invalid = 0,
     FormDataInitialized,
     ValidationRequested,
+    FindEntity
 }
 
 public class RgfFormEventArgs : EventArgs
 {
-    public RgfFormEventArgs(RgfFormEventKind eventKind, ComponentBase formComponent, FieldIdentifier? fieldId = null, RgfForm.Property? property = null)
+    public RgfFormEventArgs(RgfFormEventKind eventKind, ComponentBase formComponent, FieldIdentifier? fieldId = null, RgfForm.Property? property = null, RgfSelectParam? selectParam = null)
     {
         EventKind = eventKind;
         BaseFormComponent = formComponent;
         FieldId = fieldId;
         Property = property;
+        SelectParam = selectParam;
     }
 
     public RgfFormEventKind EventKind { get; }
@@ -27,4 +30,6 @@ public class RgfFormEventArgs : EventArgs
     public FieldIdentifier? FieldId { get; internal set; }
 
     public RgfForm.Property? Property { get; internal set; }
+
+    public RgfSelectParam? SelectParam { get; internal set; }
 }

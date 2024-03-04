@@ -11,12 +11,12 @@ public class RgfEventDispatcher<TEvent, TArgs> where TEvent : notnull where TArg
 
     private EventDispatcher<IRgfEventArgs<TArgs>> _genericHandler = new();
 
-    public void Subscribe(TEvent eventName, Func<IRgfEventArgs<TArgs>, Task> handler, bool callHandlerIfUnhandled = false)
+    public void Subscribe(TEvent eventName, Func<IRgfEventArgs<TArgs>, Task> handler, bool defaultHandler = false)
     {
         if (handler != null)
         {
             EventDispatcher<IRgfEventArgs<TArgs>>? handlers;
-            if (callHandlerIfUnhandled)
+            if (defaultHandler)
             {
                 if (!_defaultHandlers.TryGetValue(eventName, out handlers))
                 {
@@ -75,14 +75,14 @@ public class RgfEventDispatcher<TEvent, TArgs> where TEvent : notnull where TArg
 
         await _genericHandler.InvokeAsync(args);
 
-        if (!args.Handled && _defaultHandlers.TryGetValue(eventName, out var defaultHandlers))
+        if (!args.PreventDefault && _defaultHandlers.TryGetValue(eventName, out var defaultHandlers))
         {
             await defaultHandlers.InvokeAsync(args);
         }
         return args.Handled;
     }
 
-    public void Subscribe(TEvent[] eventNames, Func<IRgfEventArgs<TArgs>, Task> handler, bool callHandlerIfUnhandled = false) => Array.ForEach(eventNames, (e) => Subscribe(e, handler, callHandlerIfUnhandled));
+    public void Subscribe(TEvent[] eventNames, Func<IRgfEventArgs<TArgs>, Task> handler, bool defaultHandler = false) => Array.ForEach(eventNames, (e) => Subscribe(e, handler, defaultHandler));
     public void Subscribe(TEvent[] eventNames, Action<IRgfEventArgs<TArgs>> handler) => Array.ForEach(eventNames, (e) => Subscribe(e, handler));
     public void Subscribe(Func<IRgfEventArgs<TArgs>, Task> handler) =>  _genericHandler.Subscribe(handler);
     public void Unsubscribe(TEvent[] eventNames, Func<IRgfEventArgs<TArgs>, Task> handler) => Array.ForEach(eventNames, (e) => Unsubscribe(e, handler));
@@ -101,6 +101,8 @@ public class RgfEventArgs<TArgs> : IRgfEventArgs<TArgs> where TArgs : EventArgs
     public object Sender { get; }
 
     public bool Handled { get; set; }
+
+    public bool PreventDefault { get; set; }
 
     public TArgs Args { get; }
 }

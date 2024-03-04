@@ -1,37 +1,44 @@
-﻿using Recrovit.RecroGridFramework.Abstraction.Contracts.API;
+﻿using Microsoft.AspNetCore.Components;
+using Recrovit.RecroGridFramework.Abstraction.Contracts.API;
 using Recrovit.RecroGridFramework.Abstraction.Models;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Recrovit.RecroGridFramework.Client.Events;
 
-public enum ListViewAction
+public enum RgfListEventKind
 {
     RefreshRow,
     AddRow,
     DeleteRow,
+
+    CreateRowData,
+    ColumnSettingsChanged
 }
 
-public class RgfListViewEventArgs : EventArgs
+public class RgfListEventArgs : EventArgs
 {
-    public RgfListViewEventArgs(ListViewAction command, RgfDynamicDictionary data)
+    public RgfListEventArgs(RgfListEventKind eventKind, ComponentBase? gridComponent, RgfDynamicDictionary? data = null, IEnumerable<RgfProperty>? properties = null)
     {
-        Command = command;
+        EventKind = eventKind;
+        BaseGridComponent = gridComponent;
         Data = data;
+        Properties = properties;
     }
 
-    public ListViewAction Command { get; }
-    public RgfDynamicDictionary Data { get; set; }
+    public RgfListEventKind EventKind { get; }
 
-    public static bool Create(ListViewAction command, RgfGridResult data, out RgfListViewEventArgs? rowData) => Create(command, data.DataColumns, data.Data[0], out rowData);
-    public static bool Create(ListViewAction command, string[]? dataColumns, object[]? data, out RgfListViewEventArgs? rowData)
+    public ComponentBase? BaseGridComponent { get; }
+
+    public RgfDynamicDictionary? Data { get; }
+
+    public IEnumerable<RgfProperty>? Properties { get; }
+
+    public static bool Create(RgfListEventKind eventKind, RgfGridResult data, out RgfListEventArgs? rowData) => Create(eventKind, data.DataColumns, data.Data[0], out rowData);
+
+    public static bool Create(RgfListEventKind eventKind, string[]? dataColumns, object[]? data, out RgfListEventArgs? rowData)
     {
         if (dataColumns != null && data != null)
         {
-            rowData = new(command, new RgfDynamicDictionary(dataColumns, data));
+            rowData = new(eventKind, null, new RgfDynamicDictionary(dataColumns, data));
             return true;
         }
         rowData = null;

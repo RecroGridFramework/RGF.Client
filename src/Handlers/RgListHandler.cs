@@ -356,10 +356,7 @@ internal class RgListHandler : IDisposable, IRgListHandler
 
     public RgfDynamicDictionary GetEKey(RgfDynamicDictionary data)
     {
-        if (data == null)
-        {
-            throw new ArgumentNullException(nameof(data));
-        }
+        ArgumentNullException.ThrowIfNull(data);
         RgfDynamicDictionary ekey = new();
         var props = EntityDesc.Properties.Where(e => e.IsKey).ToArray();
         var keys = props.Select(e => e.ClientName).ToArray();
@@ -479,7 +476,7 @@ internal class RgListHandler : IDisposable, IRgListHandler
 
     private async Task InitializeAsync(RgfGridRequest param)
     {
-        _disposables.Add(_manager.NotificationManager.Subscribe<RgfListViewEventArgs>(this, OnListViewEvent));
+        _disposables.Add(_manager.NotificationManager.Subscribe<RgfListEventArgs>(this, OnListViewEvent));
         _disposables.Add(PageSize.OnAfterChange(this, PageSizeChanging));
         _disposables.Add(ActivePage.OnAfterChange(this, PageChangingAsync));
 
@@ -487,13 +484,17 @@ internal class RgListHandler : IDisposable, IRgListHandler
         await GetDataListAsync();
     }
 
-    private async Task OnListViewEvent(IRgfEventArgs<RgfListViewEventArgs> args)
+    private async Task OnListViewEvent(IRgfEventArgs<RgfListEventArgs> args)
     {
-        _logger.LogDebug("OnListViewEvent: {cmd}", args.Args.Command);
+        _logger.LogDebug("OnListViewEvent: {cmd}", args.Args.EventKind);
 
         RgfDynamicDictionary? newRow = null;
         RgfDynamicDictionary ekey;
-        if (args.Args.Command == ListViewAction.DeleteRow)
+        if (args.Args.Data == null)
+        {
+            return;
+        }
+        if (args.Args.EventKind == RgfListEventKind.DeleteRow)
         {
             ekey = args.Args.Data;
         }
@@ -502,15 +503,15 @@ internal class RgListHandler : IDisposable, IRgListHandler
             newRow = args.Args.Data;
             ekey = GetEKey(newRow);
         }
-        if (!ekey.Any())
+        if (ekey.Count == 0)
         {
             return;
         }
-        var page = args.Args.Command == ListViewAction.AddRow ? 0 : ActivePage.Value - 1;
+        var page = args.Args.EventKind == RgfListEventKind.AddRow ? 0 : ActivePage.Value - 1;
         if (_dataCache.TryGetData(page, out var pageData) && pageData != null)
         {
             bool refresh = false;
-            if (args.Args.Command == ListViewAction.AddRow && newRow != null)
+            if (args.Args.EventKind == RgfListEventKind.AddRow && newRow != null)
             {
                 object[][] newArray = new object[pageData.Length + 1][];
                 Array.Copy(pageData, 0, newArray, 1, pageData.Length);
@@ -541,12 +542,12 @@ internal class RgListHandler : IDisposable, IRgListHandler
                     var ekey2 = GetEKey(row2);
                     if (ekey.Equals(ekey2))
                     {
-                        if (args.Args.Command == ListViewAction.DeleteRow)
+                        if (args.Args.EventKind == RgfListEventKind.DeleteRow)
                         {
                             _dataCache.RemovePages(page, int.MaxValue);
                             ItemCount.Value--;
                         }
-                        else if (args.Args.Command == ListViewAction.RefreshRow && newRow != null)
+                        else if (args.Args.EventKind == RgfListEventKind.RefreshRow && newRow != null)
                         {
                             for (int col = 0; col < DataColumns.Length; col++)
                             {

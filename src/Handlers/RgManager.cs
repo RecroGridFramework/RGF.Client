@@ -295,7 +295,7 @@ public class RgManager : IRgManager
         {
             if (res.Result.Success)
             {
-                await NotificationManager.RaiseEventAsync(new RgfListViewEventArgs(ListViewAction.DeleteRow, entityKey.Keys), this);
+                await NotificationManager.RaiseEventAsync(new RgfListEventArgs(RgfListEventKind.DeleteRow, null, entityKey.Keys), this);
             }
             BroadcastMessages(res.Result.Messages, this);
         }

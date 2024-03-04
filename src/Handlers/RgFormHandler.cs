@@ -177,7 +177,7 @@ internal class RgFormHandler : IRgFormHandler
         }
         var res = await _manager.UpdateFormDataAsync(param);
         if (res.Success && res.Result?.GridResult != null
-            && RgfListViewEventArgs.Create(isNewRow ? ListViewAction.AddRow : ListViewAction.RefreshRow, res.Result.GridResult, out var arg))
+            && RgfListEventArgs.Create(isNewRow ? RgfListEventKind.AddRow : RgfListEventKind.RefreshRow, res.Result.GridResult, out var arg))
         {
             await _manager.NotificationManager.RaiseEventAsync(arg, this);
         }

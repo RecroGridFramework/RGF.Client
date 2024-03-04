@@ -2,7 +2,7 @@
 
 namespace Recrovit.RecroGridFramework.Client.Events;
 
-public enum ToolbarAction
+public enum RgfToolbarEventKind
 {
     Invalid,
 
@@ -29,13 +29,13 @@ public enum ToolbarAction
 
 public class RgfToolbarEventArgs : EventArgs
 {
-    public RgfToolbarEventArgs(ToolbarAction command, RgfDynamicDictionary? data = null)
+    public RgfToolbarEventArgs(RgfToolbarEventKind eventKind, RgfDynamicDictionary? data = null)
     {
-        Command = command;
+        EventKind = eventKind;
         Data = data;
     }
 
-    public ToolbarAction Command { get; }
+    public RgfToolbarEventKind EventKind { get; }
 
     public RgfDynamicDictionary? Data { get; }
 }

@@ -47,6 +47,8 @@ public interface IRgManager : IDisposable
 
     void BroadcastMessages(RgfMessages messages, object sender);
 
+    Task OnToolbarCommandAsync(IRgfEventArgs<RgfToolbarEventArgs> arg);
+
     event Action<bool> RefreshEntity;
     Task<string> AboutAsync();
 }
@@ -62,8 +64,6 @@ public class RgManager : IRgManager
         RecroDict = serviceProvider.GetRequiredService<IRecroDictService>();
         RecroSec = serviceProvider.GetRequiredService<IRecroSecService>();
         NotificationManager = new RgfNotificationManager(serviceProvider);
-
-        _disposables.Add(NotificationManager.Subscribe<RgfToolbarEventArgs>(this, OnToolbarCommandAsync));
     }
 
     public async Task<bool> InitializeAsync(RgfGridRequest param, bool formOnly = false)
@@ -85,7 +85,7 @@ public class RgManager : IRgManager
             if (ListHandler.ItemCount.Value == 1)
             {
                 SelectedItems.Value = await ListHandler.GetDataListAsync();
-                await OnToolbarCommandAsync(new RgfEventArgs<RgfToolbarEventArgs>(this, new(ToolbarAction.Read)));
+                await OnToolbarCommandAsync(new RgfEventArgs<RgfToolbarEventArgs>(this, new(RgfToolbarEventKind.Read)));
             }
             else
             {
@@ -119,8 +119,6 @@ public class RgManager : IRgManager
 
     private IRgfApiService _rgfService { get; }
     private ILogger<RgManager> _logger { get; }
-
-    private List<IDisposable> _disposables { get; set; } = new();
 
     private RgFilterHandler? _filterHandler { get; set; }
 
@@ -333,27 +331,24 @@ public class RgManager : IRgManager
         }
     }
 
-    protected virtual async Task OnToolbarCommandAsync(IRgfEventArgs<RgfToolbarEventArgs> arg)
+    public virtual async Task OnToolbarCommandAsync(IRgfEventArgs<RgfToolbarEventArgs> arg)
     {
-        _logger.LogDebug("OnToolbarCommand: {cmd}", arg.Args.Command);
-        switch (arg.Args.Command)
+        _logger.LogDebug("OnToolbarCommand: {cmd}", arg.Args.EventKind);
+        switch (arg.Args.EventKind)
         {
-            case ToolbarAction.Refresh:
+            case RgfToolbarEventKind.Refresh:
                 await ListHandler.RefreshDataAsync();
                 break;
 
-            case ToolbarAction.ShowFilter:
-                break;
-
-            case ToolbarAction.Add:
+            case RgfToolbarEventKind.Add:
                 if (ListHandler.CRUD.Add && EntityDesc.Options.GetBoolValue("RGO_NoDetails") != true)
                 {
                     FormViewKey.Value = new(new RgfEntityKey());
                 }
                 break;
 
-            case ToolbarAction.Edit:
-            case ToolbarAction.Read:
+            case RgfToolbarEventKind.Edit:
+            case RgfToolbarEventKind.Read:
                 if ((ListHandler.CRUD.Read || ListHandler.CRUD.Edit) && EntityDesc.Options.GetBoolValue("RGO_NoDetails") != true)
                 {
                     var data = SelectedItems.Value.SingleOrDefault();
@@ -364,7 +359,7 @@ public class RgManager : IRgManager
                 }
                 break;
 
-            case ToolbarAction.Delete:
+            case RgfToolbarEventKind.Delete:
                 if (ListHandler.CRUD.Delete)
                 {
                     var data = SelectedItems.Value.SingleOrDefault();
@@ -375,15 +370,15 @@ public class RgManager : IRgManager
                 }
                 break;
 
-            case ToolbarAction.Select:
+            case RgfToolbarEventKind.Select:
                 OnSelect();
                 break;
 
-            case ToolbarAction.SaveSettings:
+            case RgfToolbarEventKind.SaveSettings:
                 await SaveColumnSettingsAsync(ListHandler.GetGridSettings());
                 break;
 
-            case ToolbarAction.ResetSettings:
+            case RgfToolbarEventKind.ResetSettings:
                 await SaveColumnSettingsAsync(new RgfGridSettings(), true);
                 break;
         }
@@ -424,11 +419,6 @@ public class RgManager : IRgManager
 
     public void Dispose()
     {
-        if (_disposables != null)
-        {
-            _disposables.ForEach(disposable => disposable.Dispose());
-            _disposables = null!;
-        }
         if (ListHandler != null)
         {
             ListHandler.Dispose();

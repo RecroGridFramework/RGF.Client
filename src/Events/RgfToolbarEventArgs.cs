@@ -5,7 +5,6 @@ namespace Recrovit.RecroGridFramework.Client.Events;
 public enum RgfToolbarEventKind
 {
     Invalid,
-
     Refresh,
     ShowFilter,
     Add,
@@ -13,18 +12,6 @@ public enum RgfToolbarEventKind
     Read,
     Delete,
     Select,
-
-    ColumnSettings,
-    SaveSettings,
-    ResetSettings,
-
-    EntityEditor,
-    RecroTrack,
-    QueryString,
-    QuickWatch,
-    ExportCsv,
-
-    RgfAbout
 }
 
 public class RgfToolbarEventArgs : EventArgs

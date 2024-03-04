@@ -35,6 +35,7 @@ public interface IRgManager : IDisposable
 
     Task<IRgFilterHandler> GetFilterHandlerAsync();
     Task<RgfResult<RgfPredefinedFilterResult>> SavePredefinedFilterAsync(RgfPredefinedFilter predefinedFilter);
+    Task SaveColumnSettingsAsync(RgfGridSettings settings, bool recreate = false);
 
     Task<RgfResult<RgfGridResult>> GetRecroGridAsync(RgfGridRequest param);
     Task<RgfResult<RgfCustomFunctionResult>> CallCustomFunctionAsync(RgfGridRequest param);
@@ -229,7 +230,7 @@ public class RgManager : IRgManager
         RefreshEntity.Invoke(false);
     }
 
-    protected virtual async Task SaveColumnSettingsAsync(RgfGridSettings settings, bool recreate = false)
+    public virtual async Task SaveColumnSettingsAsync(RgfGridSettings settings, bool recreate = false)
     {
         RgfGridRequest param = new(SessionParams)
         {
@@ -372,14 +373,6 @@ public class RgManager : IRgManager
 
             case RgfToolbarEventKind.Select:
                 OnSelect();
-                break;
-
-            case RgfToolbarEventKind.SaveSettings:
-                await SaveColumnSettingsAsync(ListHandler.GetGridSettings());
-                break;
-
-            case RgfToolbarEventKind.ResetSettings:
-                await SaveColumnSettingsAsync(new RgfGridSettings(), true);
                 break;
         }
     }

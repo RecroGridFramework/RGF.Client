@@ -9,7 +9,7 @@ public class RgfMenuEventArgs : EventArgs
         Command = command;
         MenuType = menuType;
         EntityKey = entityKey;
-        Data = data ?? new();
+        Data = data;
     }
 
     public string Command { get; }
@@ -18,5 +18,5 @@ public class RgfMenuEventArgs : EventArgs
 
     public RgfEntityKey? EntityKey { get;}
 
-    public RgfDynamicDictionary Data { get;}
+    public RgfDynamicDictionary? Data { get;}
 }

@@ -3,8 +3,8 @@ using Microsoft.Extensions.Logging;
 using Recrovit.RecroGridFramework.Abstraction.Contracts.API;
 using Recrovit.RecroGridFramework.Abstraction.Extensions;
 using Recrovit.RecroGridFramework.Abstraction.Models;
-using Recrovit.RecroGridFramework.Client.Events;
 using Recrovit.RecroGridFramework.Client.Models;
+using System.Data;
 
 namespace Recrovit.RecroGridFramework.Client.Handlers;
 
@@ -176,10 +176,16 @@ internal class RgFormHandler : IRgFormHandler
             return new RgfResult<RgfFormResult>() { Success = !isNewRow };
         }
         var res = await _manager.UpdateFormDataAsync(param);
-        if (res.Success && res.Result?.GridResult != null
-            && RgfListEventArgs.Create(isNewRow ? RgfListEventKind.AddRow : RgfListEventKind.RefreshRow, res.Result.GridResult, out var arg))
+        if (res.Success && res.Result?.GridResult != null)
         {
-            await _manager.NotificationManager.RaiseEventAsync(arg, this);
+            if (isNewRow)
+            {
+                await _manager.ListHandler.AddRowAsync(new RgfDynamicDictionary(res.Result.GridResult.DataColumns, res.Result.GridResult.Data[0]));
+            }
+            else
+            {
+                await _manager.ListHandler.RefreshRowAsync(new RgfDynamicDictionary(res.Result.GridResult.DataColumns, res.Result.GridResult.Data[0]));
+            }
         }
         return res;
     }

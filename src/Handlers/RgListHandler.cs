@@ -1,11 +1,9 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Recrovit.RecroGridFramework.Abstraction.Contracts.API;
-using Recrovit.RecroGridFramework.Abstraction.Contracts.Services;
 using Recrovit.RecroGridFramework.Abstraction.Extensions;
 using Recrovit.RecroGridFramework.Abstraction.Infrastructure.Security;
 using Recrovit.RecroGridFramework.Abstraction.Models;
-using Recrovit.RecroGridFramework.Client.Events;
 using System.Data;
 
 namespace Recrovit.RecroGridFramework.Client.Handlers;
@@ -44,6 +42,12 @@ public interface IRgListHandler
     Task PageChangingAsync(ObservablePropertyEventArgs<int> args);
 
     Task RefreshDataAsync();
+
+    Task RefreshRowAsync(RgfDynamicDictionary rowData);
+
+    Task AddRowAsync(RgfDynamicDictionary rowData);
+
+    Task DeleteRowAsync(RgfEntityKey entityKey);
 
     Task SetFilterAsync(RgfFilter.Condition[] conditions, int? queryTimeout);
 
@@ -476,7 +480,6 @@ internal class RgListHandler : IDisposable, IRgListHandler
 
     private async Task InitializeAsync(RgfGridRequest param)
     {
-        _disposables.Add(_manager.NotificationManager.Subscribe<RgfListEventArgs>(this, OnListViewEvent));
         _disposables.Add(PageSize.OnAfterChange(this, PageSizeChanging));
         _disposables.Add(ActivePage.OnAfterChange(this, PageChangingAsync));
 
@@ -484,82 +487,92 @@ internal class RgListHandler : IDisposable, IRgListHandler
         await GetDataListAsync();
     }
 
-    private async Task OnListViewEvent(IRgfEventArgs<RgfListEventArgs> args)
+    public async Task AddRowAsync(RgfDynamicDictionary rowData)
     {
-        _logger.LogDebug("OnListViewEvent: {cmd}", args.Args.EventKind);
-
-        RgfDynamicDictionary? newRow = null;
-        RgfDynamicDictionary ekey;
-        if (args.Args.Data == null)
+        RgfDynamicDictionary ekey = GetEKey(rowData);
+        if (ekey.Count == 0 || !_dataCache.TryGetData(0, out var pageData) || pageData == null)
         {
             return;
         }
-        if (args.Args.EventKind == RgfListEventKind.DeleteRow)
+        object[][] newArray = new object[pageData.Length + 1][];
+        Array.Copy(pageData, 0, newArray, 1, pageData.Length);
+        newArray[0] = new object[DataColumns.Length];
+        for (int col = 0; col < DataColumns.Length; col++)
         {
-            ekey = args.Args.Data;
+            var clientName = DataColumns[col];
+            newArray[0][col] = rowData.GetMember(clientName);
+        }
+        _dataCache.Clear();
+        _dataCache.AddOrReplaceMultiple(0, newArray);
+        ItemCount.Value++;
+        if (ActivePage.Value == 1)
+        {
+            await GetDataListAsync();
         }
         else
         {
-            newRow = args.Args.Data;
-            ekey = GetEKey(newRow);
+            ActivePage.Value = 1;
         }
+    }
+
+    public async Task RefreshRowAsync(RgfDynamicDictionary rowData)
+    {
+        RgfDynamicDictionary ekey = GetEKey(rowData);
         if (ekey.Count == 0)
         {
             return;
         }
-        var page = args.Args.EventKind == RgfListEventKind.AddRow ? 0 : ActivePage.Value - 1;
+        var page = ActivePage.Value - 1;
         if (_dataCache.TryGetData(page, out var pageData) && pageData != null)
         {
             bool refresh = false;
-            if (args.Args.EventKind == RgfListEventKind.AddRow && newRow != null)
+            var logger = _manager.ServiceProvider.GetRequiredService<ILogger<RgfDynamicDictionary>>();
+            for (int index = 0; index < pageData.Length; index++)
             {
-                object[][] newArray = new object[pageData.Length + 1][];
-                Array.Copy(pageData, 0, newArray, 1, pageData.Length);
-                newArray[0] = new object[DataColumns.Length];
-                for (int col = 0; col < DataColumns.Length; col++)
+                var row2 = RgfDynamicDictionary.Create(logger, EntityDesc, DataColumns, pageData[index], true);
+                var ekey2 = GetEKey(row2);
+                if (ekey.Equals(ekey2))
                 {
-                    var clientName = DataColumns[col];
-                    newArray[0][col] = newRow.GetMember(clientName);
-                }
-                _dataCache.Clear();
-                _dataCache.AddOrReplaceMultiple(0, newArray);
-                ItemCount.Value++;
-                if (ActivePage.Value == 1)
-                {
+                    for (int col = 0; col < DataColumns.Length; col++)
+                    {
+                        var clientName = DataColumns[col];
+                        //pageData[i][col] = newRow.ContainsKey(clientName) ? newRow.GetMember(clientName) : "?";
+                        pageData[index][col] = rowData.GetMember(clientName);
+                    }
+                    _dataCache.Replace(page, pageData);
                     refresh = true;
-                }
-                else
-                {
-                    ActivePage.Value = 1;
+                    break;
                 }
             }
-            else
+            if (refresh)
             {
-                var logger = _manager.ServiceProvider.GetRequiredService<ILogger<RgfDynamicDictionary>>();
-                for (int index = 0; index < pageData.Length; index++)
+                await GetDataListAsync();
+            }
+        }
+    }
+
+    public async Task DeleteRowAsync(RgfEntityKey entityKey)
+    {
+        RgfDynamicDictionary key = entityKey.Keys;
+        if (key.Count == 0)
+        {
+            return;
+        }
+        var page = ActivePage.Value - 1;
+        if (_dataCache.TryGetData(page, out var pageData) && pageData != null)
+        {
+            bool refresh = false;
+            var logger = _manager.ServiceProvider.GetRequiredService<ILogger<RgfDynamicDictionary>>();
+            for (int index = 0; index < pageData.Length; index++)
+            {
+                var row2 = RgfDynamicDictionary.Create(logger, EntityDesc, DataColumns, pageData[index], true);
+                var ekey2 = GetEKey(row2);
+                if (key.Equals(ekey2))
                 {
-                    var row2 = RgfDynamicDictionary.Create(logger, EntityDesc, DataColumns, pageData[index], true);
-                    var ekey2 = GetEKey(row2);
-                    if (ekey.Equals(ekey2))
-                    {
-                        if (args.Args.EventKind == RgfListEventKind.DeleteRow)
-                        {
-                            _dataCache.RemovePages(page, int.MaxValue);
-                            ItemCount.Value--;
-                        }
-                        else if (args.Args.EventKind == RgfListEventKind.RefreshRow && newRow != null)
-                        {
-                            for (int col = 0; col < DataColumns.Length; col++)
-                            {
-                                var clientName = DataColumns[col];
-                                //pageData[i][col] = newRow.ContainsKey(clientName) ? newRow.GetMember(clientName) : "?";
-                                pageData[index][col] = newRow.GetMember(clientName);
-                            }
-                            _dataCache.Replace(page, pageData);
-                        }
-                        refresh = true;
-                        break;
-                    }
+                    _dataCache.RemovePages(page, int.MaxValue);
+                    ItemCount.Value--;
+                    refresh = true;
+                    break;
                 }
             }
             if (refresh)

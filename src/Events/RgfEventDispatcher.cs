@@ -3,13 +3,15 @@ using Recrovit.RecroGridFramework.Abstraction.Infrastructure.Events;
 
 namespace Recrovit.RecroGridFramework.Client.Events;
 
-public class RgfEventDispatcher<TEnum, TArgs> where TEnum : Enum where TArgs : EventArgs
+public class RgfEventDispatcher<TEvent, TArgs> where TEvent : notnull where TArgs : EventArgs
 {
-    private Dictionary<TEnum, EventDispatcher<IRgfEventArgs<TArgs>>> _eventHandlers = [];
+    private Dictionary<TEvent, EventDispatcher<IRgfEventArgs<TArgs>>> _eventHandlers = [];
 
-    private Dictionary<TEnum, EventDispatcher<IRgfEventArgs<TArgs>>> _defaultHandlers = [];
+    private Dictionary<TEvent, EventDispatcher<IRgfEventArgs<TArgs>>> _defaultHandlers = [];
 
-    public void Subscribe(TEnum eventName, Func<IRgfEventArgs<TArgs>, Task> handler, bool callHandlerIfUnhandled = false)
+    private EventDispatcher<IRgfEventArgs<TArgs>> _genericHandler = new();
+
+    public void Subscribe(TEvent eventName, Func<IRgfEventArgs<TArgs>, Task> handler, bool callHandlerIfUnhandled = false)
     {
         if (handler != null)
         {
@@ -34,7 +36,7 @@ public class RgfEventDispatcher<TEnum, TArgs> where TEnum : Enum where TArgs : E
         }
     }
 
-    public void Subscribe(TEnum eventName, Action<IRgfEventArgs<TArgs>> handler)
+    public void Subscribe(TEvent eventName, Action<IRgfEventArgs<TArgs>> handler)
     {
         if (handler != null)
         {
@@ -48,7 +50,7 @@ public class RgfEventDispatcher<TEnum, TArgs> where TEnum : Enum where TArgs : E
         }
     }
 
-    public void Unsubscribe(TEnum eventName, Func<IRgfEventArgs<TArgs>, Task> handler)
+    public void Unsubscribe(TEvent eventName, Func<IRgfEventArgs<TArgs>, Task> handler)
     {
         if (handler != null && _eventHandlers.TryGetValue(eventName, out var handlers))
         {
@@ -56,7 +58,7 @@ public class RgfEventDispatcher<TEnum, TArgs> where TEnum : Enum where TArgs : E
         }
     }
 
-    public void Unsubscribe(TEnum eventName, Action<IRgfEventArgs<TArgs>> handler)
+    public void Unsubscribe(TEvent eventName, Action<IRgfEventArgs<TArgs>> handler)
     {
         if (handler != null && _eventHandlers.TryGetValue(eventName, out var handlers))
         {
@@ -64,26 +66,28 @@ public class RgfEventDispatcher<TEnum, TArgs> where TEnum : Enum where TArgs : E
         }
     }
 
-    public async Task<bool> DispatchEventAsync(TEnum eventName, IRgfEventArgs<TArgs> args)
+    public async Task<bool> DispatchEventAsync(TEvent eventName, IRgfEventArgs<TArgs> args)
     {
         if (_eventHandlers.TryGetValue(eventName, out var handlers))
         {
             await handlers.InvokeAsync(args);
         }
-        if (!args.Handled)
+
+        await _genericHandler.InvokeAsync(args);
+
+        if (!args.Handled && _defaultHandlers.TryGetValue(eventName, out var defaultHandlers))
         {
-            if (_defaultHandlers.TryGetValue(eventName, out handlers))
-            {
-                await handlers.InvokeAsync(args);
-            }
+            await defaultHandlers.InvokeAsync(args);
         }
         return args.Handled;
     }
 
-    public void Subscribe(TEnum[] eventNames, Func<IRgfEventArgs<TArgs>, Task> handler, bool callHandlerIfUnhandled = false) => Array.ForEach(eventNames, (e) => Subscribe(e, handler, callHandlerIfUnhandled));
-    public void Subscribe(TEnum[] eventNames, Action<IRgfEventArgs<TArgs>> handler, bool callHandlerIfUnhandled = false) => Array.ForEach(eventNames, (e) => Subscribe(e, handler));
-    public void Unsubscribe(TEnum[] eventNames, Func<IRgfEventArgs<TArgs>, Task> handler) => Array.ForEach(eventNames, (e) => Unsubscribe(e, handler));
-    public void Unsubscribe(TEnum[] eventNames, Action<IRgfEventArgs<TArgs>> handler) => Array.ForEach(eventNames, (e) => Unsubscribe(e, handler));
+    public void Subscribe(TEvent[] eventNames, Func<IRgfEventArgs<TArgs>, Task> handler, bool callHandlerIfUnhandled = false) => Array.ForEach(eventNames, (e) => Subscribe(e, handler, callHandlerIfUnhandled));
+    public void Subscribe(TEvent[] eventNames, Action<IRgfEventArgs<TArgs>> handler) => Array.ForEach(eventNames, (e) => Subscribe(e, handler));
+    public void Subscribe(Func<IRgfEventArgs<TArgs>, Task> handler) =>  _genericHandler.Subscribe(handler);
+    public void Unsubscribe(TEvent[] eventNames, Func<IRgfEventArgs<TArgs>, Task> handler) => Array.ForEach(eventNames, (e) => Unsubscribe(e, handler));
+    public void Unsubscribe(TEvent[] eventNames, Action<IRgfEventArgs<TArgs>> handler) => Array.ForEach(eventNames, (e) => Unsubscribe(e, handler));
+    public void Unsubscribe(Func<IRgfEventArgs<TArgs>, Task> handler) => _genericHandler.Unsubscribe(handler);
 }
 
 public class RgfEventArgs<TArgs> : IRgfEventArgs<TArgs> where TArgs : EventArgs

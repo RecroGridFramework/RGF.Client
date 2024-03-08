@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Components.WebAssembly.Authentication;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -93,6 +94,17 @@ internal class RecroSecService : IRecroSecService, IDisposable
     public bool IsAdmin { get; private set; }
 
     public ClaimsPrincipal CurrentUser { get; private set; } = new();
+
+    public async Task<string?> GetAccessTokenAsync()
+    {
+        var tokenProvider = _serviceProvider.GetRequiredService<IAccessTokenProvider>();
+        var tokenResult = await tokenProvider.RequestAccessToken();
+        if (tokenResult.TryGetToken(out var token))
+        {
+            return token.Value;
+        }
+        return null;
+    }
 
     public List<string> RoleClaim
     {

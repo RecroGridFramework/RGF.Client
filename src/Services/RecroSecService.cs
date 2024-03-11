@@ -167,9 +167,15 @@ internal class RecroSecService : IRecroSecService, IDisposable
         return false;
     }
 
-    public async Task<RgfPermissions> GetPermissionsAsync(string objectName, string objectKey, int expiration = 60)
+    public async Task<RgfPermissions> GetEntityPermissionsAsync(string entityName, string objectKey = null, int expiration = 60)
     {
-        var res = await GetPermissionsAsync(new RecroSecQuery[] { new RecroSecQuery() { ObjectName = objectName, ObjectKey = objectKey } }, expiration);
+        var res = await GetPermissionsAsync([new RecroSecQuery() { EntityName = entityName, ObjectKey = objectKey }], expiration);
+        return res.Single().Permissions;
+    }
+
+    public async Task<RgfPermissions> GetPermissionsAsync(string objectName, string? objectKey = null, int expiration = 60)
+    {
+        var res = await GetPermissionsAsync([new RecroSecQuery() { ObjectName = objectName, ObjectKey = objectKey }], expiration);
         return res.Single().Permissions;
     }
 
@@ -179,7 +185,7 @@ internal class RecroSecService : IRecroSecService, IDisposable
         var req = new List<RecroSecQuery>();
         foreach (var queryItem in query)
         {
-            var key = $"{queryItem.ObjectName}/{queryItem.ObjectKey}";
+            var key = $"{queryItem.EntityName}/{queryItem.ObjectName}/{queryItem.ObjectKey}";
             if (_recrosSecCache.TryGetValue(key, out RgfPermissions? perm) && perm != null)
             {
                 res.Add(new(queryItem, perm));
@@ -189,7 +195,7 @@ internal class RecroSecService : IRecroSecService, IDisposable
                 req.Add(queryItem);
             }
         }
-        if (req.Any())
+        if (req.Count != 0)
         {
             var resp = await _apiService.GetPermissionsAsync(req);
             if (resp.Success)
@@ -197,7 +203,7 @@ internal class RecroSecService : IRecroSecService, IDisposable
                 var options = new MemoryCacheEntryOptions().SetAbsoluteExpiration(TimeSpan.FromSeconds(expiration));
                 foreach (var item in resp.Result)
                 {
-                    var key = $"{item.Query.ObjectName}/{item.Query.ObjectKey}";
+                    var key = $"{item.Query.EntityName}/{item.Query.ObjectName}/{item.Query.ObjectKey}";
                     _recrosSecCache.Set(key, item.Permissions, options);
                     res.Add(item);
                 }

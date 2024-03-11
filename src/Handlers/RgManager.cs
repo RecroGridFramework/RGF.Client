@@ -16,34 +16,49 @@ public interface IRgManager : IDisposable
     RgfSessionParams SessionParams { get; }
 
     IServiceProvider ServiceProvider { get; }
+
     IRecroDictService RecroDict { get; }
-    IRecroSecService RecroSec { get; }
+
     IRgfNotificationManager NotificationManager { get; }
+
     IRgListHandler ListHandler { get; }
 
     RgfEntity EntityDesc { get; }
 
     ObservableProperty<List<RgfDynamicDictionary>> SelectedItems { get; }
+
     ObservableProperty<FormViewKey?> FormViewKey { get; }
+
     RgfSelectParam? SelectParam { get; }
 
     ObservableProperty<int> ItemCount { get; }
+
     ObservableProperty<int> PageSize { get; }
+
     ObservableProperty<int> ActivePage { get; }
+
     bool IsFiltered { get; }
+
     string EntityDomId => $"RecroGrid-{SessionParams?.GridId}";
 
     Task<IRgFilterHandler> GetFilterHandlerAsync();
+
     Task<RgfResult<RgfPredefinedFilterResult>> SavePredefinedFilterAsync(RgfPredefinedFilter predefinedFilter);
+
     Task SaveColumnSettingsAsync(RgfGridSettings settings, bool recreate = false);
 
     Task<RgfResult<RgfGridResult>> GetRecroGridAsync(RgfGridRequest param);
+
     Task<RgfResult<RgfCustomFunctionResult>> CallCustomFunctionAsync(RgfGridRequest param);
+
     Task<ResultType> GetResourceAsync<ResultType>(string name, Dictionary<string, string> query) where ResultType : class;
 
     IRgFormHandler CreateFormHandler();
+
     Task<RgfResult<RgfFormResult>> GetFormAsync(RgfGridRequest param);
+
     Task<RgfResult<RgfFormResult>> UpdateFormDataAsync(RgfGridRequest param);
+
     Task<RgfResult<RgfFormResult>> DeleteDataAsync(RgfEntityKey entityKey);
 
     void BroadcastMessages(RgfMessages messages, object sender);
@@ -63,7 +78,7 @@ public class RgManager : IRgManager
         _rgfService = serviceProvider.GetRequiredService<IRgfApiService>();
         _logger = serviceProvider.GetRequiredService<ILogger<RgManager>>();
         RecroDict = serviceProvider.GetRequiredService<IRecroDictService>();
-        RecroSec = serviceProvider.GetRequiredService<IRecroSecService>();
+        _recroSec = serviceProvider.GetRequiredService<IRecroSecService>();
         NotificationManager = new RgfNotificationManager(serviceProvider);
     }
 
@@ -99,7 +114,7 @@ public class RgManager : IRgManager
 
     public IServiceProvider ServiceProvider { get; }
     public IRecroDictService RecroDict { get; }
-    public IRecroSecService RecroSec { get; }
+    public IRecroSecService _recroSec { get; }
     public IRgfNotificationManager NotificationManager { get; }
     public IRgListHandler ListHandler { get; private set; } = default!;
 
@@ -208,7 +223,7 @@ public class RgManager : IRgManager
         }
         if (!query.ContainsKey("lang"))
         {
-            query.Add("lang", RecroSec.UserLanguage);
+            query.Add("lang", _recroSec.UserLanguage);
         }
         var res = await _rgfService.GetResourceAsync<ResultType>(name, query);
         if (!res.Success)

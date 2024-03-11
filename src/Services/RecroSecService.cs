@@ -167,7 +167,7 @@ internal class RecroSecService : IRecroSecService, IDisposable
         return false;
     }
 
-    public async Task<RgfPermissions> GetEntityPermissionsAsync(string entityName, string objectKey = null, int expiration = 60)
+    public async Task<RgfPermissions> GetEntityPermissionsAsync(string entityName, string? objectKey = null, int expiration = 60)
     {
         var res = await GetPermissionsAsync([new RecroSecQuery() { EntityName = entityName, ObjectKey = objectKey }], expiration);
         return res.Single().Permissions;

@@ -3,16 +3,21 @@ using Microsoft.Extensions.Logging;
 using Recrovit.RecroGridFramework.Abstraction.Contracts.API;
 using Recrovit.RecroGridFramework.Abstraction.Extensions;
 using Recrovit.RecroGridFramework.Abstraction.Models;
-using Recrovit.RecroGridFramework.Client.Events;
 using Recrovit.RecroGridFramework.Client.Models;
+using System.Data;
 
 namespace Recrovit.RecroGridFramework.Client.Handlers;
 
 public interface IRgFormHandler : IDisposable
 {
     Task<RgfResult<RgfFormResult>> InitializeAsync(RgfEntityKey data);
+
     bool InitFormData(RgfFormResult formResult, out FormViewData? formViewData);
+
+    RgfDynamicDictionary CollectChangedFormData(FormViewData formViewData);
+
     Task<RgfResult<RgfFormResult>> SaveAsync(FormViewData formViewData, bool skeleton = false);
+
     bool IsModified(FormViewData formViewData, RgfForm.Property property);
 }
 
@@ -144,7 +149,7 @@ internal class RgFormHandler : IRgFormHandler
             }
         }
 
-        var dataRec = RgfDynamicDictionary.Create(_logger, _manager.EntityDesc, data);
+        var dataRec = RgfDynamicDictionary.Create(_manager.ServiceProvider.GetRequiredService<ILogger<RgfDynamicDictionary>>(), _manager.EntityDesc, data);
         formViewData = new FormViewData(form.FormTabs, dataRec)
         {
             EntityKey = formResult?.EntityKey,
@@ -163,10 +168,31 @@ internal class RgFormHandler : IRgFormHandler
         {
             param.Skeleton = true;
         }
-        param.Data = new();
 
         bool isNewRow = param.EntityKey?.Keys.Any() != true;
+        param.Data = CollectChangedFormData(formViewData);
+        if (!param.Data.Any())
+        {
+            return new RgfResult<RgfFormResult>() { Success = !isNewRow };
+        }
+        var res = await _manager.UpdateFormDataAsync(param);
+        if (res.Success && res.Result?.GridResult != null)
+        {
+            if (isNewRow)
+            {
+                await _manager.ListHandler.AddRowAsync(new RgfDynamicDictionary(res.Result.GridResult.DataColumns, res.Result.GridResult.Data[0]));
+            }
+            else
+            {
+                await _manager.ListHandler.RefreshRowAsync(new RgfDynamicDictionary(res.Result.GridResult.DataColumns, res.Result.GridResult.Data[0]));
+            }
+        }
+        return res;
+    }
 
+    public RgfDynamicDictionary CollectChangedFormData(FormViewData formViewData)
+    {
+        var changes = new RgfDynamicDictionary();
         var origProps = formViewData.FormTabs.SelectMany(tab => tab.Groups.SelectMany(g => g.Properties)).ToArray();
         foreach (var name in formViewData.DataRec.GetDynamicMemberNames())
         {
@@ -175,7 +201,7 @@ internal class RgFormHandler : IRgFormHandler
             {
                 var newData = formViewData.DataRec.GetItemData(name);
                 var orig = origProps.SingleOrDefault(e => e.Id == prop.Id);
-                _logger.LogDebug("SaveData: name:{name}={new}", name, newData);
+                _logger.LogTrace("ChangedFormData.Chk: name:{name}={new}", name, newData);
                 if (orig != null)
                 {
                     if (orig.ForeignEntity?.EntityKeys.Any() == true)
@@ -185,34 +211,24 @@ internal class RgFormHandler : IRgFormHandler
                         if (fkProp != null && formViewData.DataRec.GetItemData(fkProp.Alias).Value != null)
                         {
                             //The key is also provided, so we omit the filter string.
-                            _logger.LogDebug("SaveData.Skip: name:{name}", name);
+                            _logger.LogDebug("ChangedFormData.Skip: name:{name}", name);
                             continue;
                         }
                     }
                     var origData = new RgfDynamicData(prop.ClientDataType, orig.OrigValue);
                     if (!origData.Equals(newData))
                     {
-                        _logger.LogDebug("SaveData.ChangeData: name:{name}, new:{new}, orig:{orig}", name, newData, origData);
-                        param.Data.SetMember(prop.ClientName, newData.ToString());
+                        _logger.LogDebug("ChangedFormData: name:{name}, new:{new}, orig:{orig}", name, newData, origData);
+                        changes.SetMember(prop.ClientName, newData.ToString());
                     }
                 }
                 else if (newData?.Value != null)
                 {
-                    param.Data.SetMember(prop.ClientName, newData.ToString());
+                    changes.SetMember(prop.ClientName, newData.ToString());
                 }
             }
         }
-        if (!param.Data.Any())
-        {
-            return new RgfResult<RgfFormResult>() { Success = !isNewRow };
-        }
-        var res = await _manager.UpdateFormDataAsync(param);
-        if (res.Success && res.Result?.GridResult != null
-            && RgfListViewEventArgs.Create(isNewRow ? ListViewAction.AddRow : ListViewAction.RefreshRow, res.Result.GridResult, out var arg))
-        {
-            _manager.NotificationManager.RaiseEvent(arg, this);
-        }
-        return res;
+        return changes;
     }
 
     public bool IsModified(FormViewData formViewData, RgfForm.Property property)

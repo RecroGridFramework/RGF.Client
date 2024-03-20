@@ -5,6 +5,7 @@ using Recrovit.RecroGridFramework.Abstraction.Contracts.Services;
 using Recrovit.RecroGridFramework.Abstraction.Extensions;
 using Recrovit.RecroGridFramework.Abstraction.Models;
 using Recrovit.RecroGridFramework.Client.Events;
+using Recrovit.RecroGridFramework.Client.Models;
 using Recrovit.RecroGridFramework.Client.Services;
 using System.ComponentModel;
 
@@ -15,36 +16,52 @@ public interface IRgManager : IDisposable
     RgfSessionParams SessionParams { get; }
 
     IServiceProvider ServiceProvider { get; }
-    IRecroDictService RecroDict { get; }
-    IRecroSecService RecroSec { get; }
+
     IRgfNotificationManager NotificationManager { get; }
+
     IRgListHandler ListHandler { get; }
 
     RgfEntity EntityDesc { get; }
 
     ObservableProperty<List<RgfDynamicDictionary>> SelectedItems { get; }
-    ObservableProperty<RgfEntityKey?> FormDataKey { get; }
+
+    ObservableProperty<FormViewKey?> FormViewKey { get; }
+
     RgfSelectParam? SelectParam { get; }
 
     ObservableProperty<int> ItemCount { get; }
+
     ObservableProperty<int> PageSize { get; }
+
     ObservableProperty<int> ActivePage { get; }
+
     bool IsFiltered { get; }
+
     string EntityDomId => $"RecroGrid-{SessionParams?.GridId}";
 
     Task<IRgFilterHandler> GetFilterHandlerAsync();
+
     Task<RgfResult<RgfPredefinedFilterResult>> SavePredefinedFilterAsync(RgfPredefinedFilter predefinedFilter);
 
+    Task SaveColumnSettingsAsync(RgfGridSettings settings, bool recreate = false);
+
     Task<RgfResult<RgfGridResult>> GetRecroGridAsync(RgfGridRequest param);
+
     Task<RgfResult<RgfCustomFunctionResult>> CallCustomFunctionAsync(RgfGridRequest param);
+
     Task<ResultType> GetResourceAsync<ResultType>(string name, Dictionary<string, string> query) where ResultType : class;
 
     IRgFormHandler CreateFormHandler();
+
     Task<RgfResult<RgfFormResult>> GetFormAsync(RgfGridRequest param);
+
     Task<RgfResult<RgfFormResult>> UpdateFormDataAsync(RgfGridRequest param);
+
     Task<RgfResult<RgfFormResult>> DeleteDataAsync(RgfEntityKey entityKey);
 
     void BroadcastMessages(RgfMessages messages, object sender);
+
+    Task OnToolbarCommandAsync(IRgfEventArgs<RgfToolbarEventArgs> arg);
 
     event Action<bool> RefreshEntity;
     Task<string> AboutAsync();
@@ -58,11 +75,9 @@ public class RgManager : IRgManager
         ServiceProvider = serviceProvider;
         _rgfService = serviceProvider.GetRequiredService<IRgfApiService>();
         _logger = serviceProvider.GetRequiredService<ILogger<RgManager>>();
-        RecroDict = serviceProvider.GetRequiredService<IRecroDictService>();
-        RecroSec = serviceProvider.GetRequiredService<IRecroSecService>();
+        _recroDict = serviceProvider.GetRequiredService<IRecroDictService>();
+        _recroSec = serviceProvider.GetRequiredService<IRecroSecService>();
         NotificationManager = new RgfNotificationManager(serviceProvider);
-
-        _disposables.Add(NotificationManager.Subscribe<RgfToolbarEventArgs>(this, OnToolbarCommandAsync));
     }
 
     public async Task<bool> InitializeAsync(RgfGridRequest param, bool formOnly = false)
@@ -84,7 +99,7 @@ public class RgManager : IRgManager
             if (ListHandler.ItemCount.Value == 1)
             {
                 SelectedItems.Value = await ListHandler.GetDataListAsync();
-                await OnToolbarCommandAsync(new RgfEventArgs<RgfToolbarEventArgs>(this, new(ToolbarAction.Read)));
+                await OnToolbarCommandAsync(new RgfEventArgs<RgfToolbarEventArgs>(this, new(RgfToolbarEventKind.Read)));
             }
             else
             {
@@ -96,8 +111,8 @@ public class RgManager : IRgManager
     }
 
     public IServiceProvider ServiceProvider { get; }
-    public IRecroDictService RecroDict { get; }
-    public IRecroSecService RecroSec { get; }
+    private IRecroDictService _recroDict { get; }
+    public IRecroSecService _recroSec { get; }
     public IRgfNotificationManager NotificationManager { get; }
     public IRgListHandler ListHandler { get; private set; } = default!;
 
@@ -105,7 +120,7 @@ public class RgManager : IRgManager
     public RgfEntity EntityDesc => ListHandler.EntityDesc;
 
     public ObservableProperty<List<RgfDynamicDictionary>> SelectedItems { get; private set; } = new(new(), nameof(SelectedItems));
-    public ObservableProperty<RgfEntityKey?> FormDataKey { get; private set; } = new(new(), nameof(FormDataKey));
+    public ObservableProperty<FormViewKey?> FormViewKey { get; private set; } = new(new(), nameof(FormViewKey));
     public RgfSelectParam? SelectParam { get; private set; }
 
     public ObservableProperty<int> ItemCount => ListHandler.ItemCount;
@@ -119,8 +134,6 @@ public class RgManager : IRgManager
     private IRgfApiService _rgfService { get; }
     private ILogger<RgManager> _logger { get; }
 
-    private List<IDisposable> _disposables { get; set; } = new();
-
     private RgFilterHandler? _filterHandler { get; set; }
 
     public async Task<IRgFilterHandler> GetFilterHandlerAsync()
@@ -132,7 +145,7 @@ public class RgManager : IRgManager
             var res = await _rgfService.GetFilterAsync(new RgfGridRequest(SessionParams));
             if (!res.Success)
             {
-                NotificationManager.RaiseEvent(new RgfUserMessage(RecroDict, UserMessageType.Error, res.ErrorMessage), this);
+                await NotificationManager.RaiseEventAsync(new RgfUserMessage(_recroDict, UserMessageType.Error, res.ErrorMessage), this);
             }
             else
             {
@@ -163,7 +176,7 @@ public class RgManager : IRgManager
         var res = await _rgfService.SavePredefinedFilterAsync(param);
         if (!res.Success)
         {
-            NotificationManager.RaiseEvent(new RgfUserMessage(RecroDict, UserMessageType.Error, res.ErrorMessage), this);
+            await NotificationManager.RaiseEventAsync(new RgfUserMessage(_recroDict, UserMessageType.Error, res.ErrorMessage), this);
         }
         return res.Result;
     }
@@ -174,7 +187,7 @@ public class RgManager : IRgManager
         var res = await _rgfService.GetRecroGridAsync(param);
         if (!res.Success)
         {
-            NotificationManager.RaiseEvent(new RgfUserMessage(RecroDict, UserMessageType.Error, res.ErrorMessage), this);
+            await NotificationManager.RaiseEventAsync(new RgfUserMessage(_recroDict, UserMessageType.Error, res.ErrorMessage), this);
         }
         else if (res.Result.Success)
         {
@@ -195,7 +208,7 @@ public class RgManager : IRgManager
         var res = await _rgfService.CallCustomFunctionAsync(param);
         if (!res.Success)
         {
-            NotificationManager.RaiseEvent(new RgfUserMessage(RecroDict, UserMessageType.Error, res.ErrorMessage), this);
+            await NotificationManager.RaiseEventAsync(new RgfUserMessage(_recroDict, UserMessageType.Error, res.ErrorMessage), this);
         }
         return res.Result;
     }
@@ -208,12 +221,12 @@ public class RgManager : IRgManager
         }
         if (!query.ContainsKey("lang"))
         {
-            query.Add("lang", RecroSec.UserLanguage);
+            query.Add("lang", _recroSec.UserLanguage);
         }
         var res = await _rgfService.GetResourceAsync<ResultType>(name, query);
         if (!res.Success)
         {
-            NotificationManager.RaiseEvent(new RgfUserMessage(RecroDict, UserMessageType.Error, res.ErrorMessage), this);
+            await NotificationManager.RaiseEventAsync(new RgfUserMessage(_recroDict, UserMessageType.Error, res.ErrorMessage), this);
         }
         return res.Result;
     }
@@ -230,7 +243,7 @@ public class RgManager : IRgManager
         RefreshEntity.Invoke(false);
     }
 
-    protected virtual async Task SaveColumnSettingsAsync(RgfGridSettings settings, bool recreate = false)
+    public virtual async Task SaveColumnSettingsAsync(RgfGridSettings settings, bool recreate = false)
     {
         RgfGridRequest param = new(SessionParams)
         {
@@ -239,7 +252,7 @@ public class RgManager : IRgManager
         var res = await _rgfService.SaveColumnSettingsAsync(param);
         if (!res.Success)
         {
-            NotificationManager.RaiseEvent(new RgfUserMessage(RecroDict, UserMessageType.Error, res.ErrorMessage), this);
+            await NotificationManager.RaiseEventAsync(new RgfUserMessage(_recroDict, UserMessageType.Error, res.ErrorMessage), this);
         }
         else
         {
@@ -263,7 +276,7 @@ public class RgManager : IRgManager
         var res = await _rgfService.GetFormAsync(param);
         if (!res.Success)
         {
-            NotificationManager.RaiseEvent(new RgfUserMessage(RecroDict, UserMessageType.Error, res.ErrorMessage), this);
+            await NotificationManager.RaiseEventAsync(new RgfUserMessage(_recroDict, UserMessageType.Error, res.ErrorMessage), this);
         }
         return res.Result;
     }
@@ -274,7 +287,7 @@ public class RgManager : IRgManager
         var res = await _rgfService.UpdateDataAsync(param);
         if (!res.Success)
         {
-            NotificationManager.RaiseEvent(new RgfUserMessage(RecroDict, UserMessageType.Error, res.ErrorMessage), this);
+            await NotificationManager.RaiseEventAsync(new RgfUserMessage(_recroDict, UserMessageType.Error, res.ErrorMessage), this);
         }
         return res.Result;
     }
@@ -288,13 +301,13 @@ public class RgManager : IRgManager
         var res = await _rgfService.DeleteDataAsync(param);
         if (!res.Success)
         {
-            NotificationManager.RaiseEvent(new RgfUserMessage(RecroDict, UserMessageType.Error, res.ErrorMessage), this);
+            await NotificationManager.RaiseEventAsync(new RgfUserMessage(_recroDict, UserMessageType.Error, res.ErrorMessage), this);
         }
         else
         {
             if (res.Result.Success)
             {
-                NotificationManager.RaiseEvent(new RgfListViewEventArgs(ListViewAction.DeleteRow, entityKey.Keys), this);
+                await ListHandler.DeleteRowAsync(entityKey);
             }
             BroadcastMessages(res.Result.Messages, this);
         }
@@ -312,58 +325,55 @@ public class RgManager : IRgManager
             {
                 foreach (var item in messages.Error)
                 {
-                    NotificationManager.RaiseEvent(new RgfUserMessage(RecroDict, UserMessageType.Error, item.Value), sender);
+                    _ = NotificationManager.RaiseEventAsync(new RgfUserMessage(_recroDict, UserMessageType.Error, item.Value), sender);
                 }
             }
             if (messages.Warning != null)
             {
                 foreach (var item in messages.Warning)
                 {
-                    NotificationManager.RaiseEvent(new RgfUserMessage(RecroDict, UserMessageType.Warning, item.Value), sender);
+                    _ = NotificationManager.RaiseEventAsync(new RgfUserMessage(_recroDict, UserMessageType.Warning, item.Value), sender);
                 }
             }
             if (messages.Info != null)
             {
                 foreach (var item in messages.Info)
                 {
-                    NotificationManager.RaiseEvent(new RgfUserMessage(RecroDict, UserMessageType.Information, item.Value), sender);
+                    _ = NotificationManager.RaiseEventAsync(new RgfUserMessage(_recroDict, UserMessageType.Information, item.Value), sender);
                 }
             }
         }
     }
 
-    protected virtual async Task OnToolbarCommandAsync(IRgfEventArgs<RgfToolbarEventArgs> args)
+    public virtual async Task OnToolbarCommandAsync(IRgfEventArgs<RgfToolbarEventArgs> arg)
     {
-        _logger.LogDebug("OnToolbarCommand: {cmd}", args.Args.Command);
-        switch (args.Args.Command)
+        _logger.LogDebug("OnToolbarCommand: {cmd}", arg.Args.EventKind);
+        switch (arg.Args.EventKind)
         {
-            case ToolbarAction.Refresh:
+            case RgfToolbarEventKind.Refresh:
                 await ListHandler.RefreshDataAsync();
                 break;
 
-            case ToolbarAction.ShowFilter:
-                break;
-
-            case ToolbarAction.Add:
+            case RgfToolbarEventKind.Add:
                 if (ListHandler.CRUD.Add && EntityDesc.Options.GetBoolValue("RGO_NoDetails") != true)
                 {
-                    FormDataKey.Value = new RgfEntityKey();
+                    FormViewKey.Value = new(new RgfEntityKey());
                 }
                 break;
 
-            case ToolbarAction.Edit:
-            case ToolbarAction.Read:
+            case RgfToolbarEventKind.Edit:
+            case RgfToolbarEventKind.Read:
                 if ((ListHandler.CRUD.Read || ListHandler.CRUD.Edit) && EntityDesc.Options.GetBoolValue("RGO_NoDetails") != true)
                 {
                     var data = SelectedItems.Value.SingleOrDefault();
                     if (data != null && ListHandler.GetEntityKey(data, out var entityKey))
                     {
-                        FormDataKey.Value = entityKey;
+                        FormViewKey.Value = new(entityKey!, ListHandler.GetAbsoluteRowIndex(data));
                     }
                 }
                 break;
 
-            case ToolbarAction.Delete:
+            case RgfToolbarEventKind.Delete:
                 if (ListHandler.CRUD.Delete)
                 {
                     var data = SelectedItems.Value.SingleOrDefault();
@@ -374,16 +384,8 @@ public class RgManager : IRgManager
                 }
                 break;
 
-            case ToolbarAction.Select:
+            case RgfToolbarEventKind.Select:
                 OnSelect();
-                break;
-
-            case ToolbarAction.SaveSettings:
-                await SaveColumnSettingsAsync(ListHandler.GetGridSettings());
-                break;
-
-            case ToolbarAction.ResetSettings:
-                await SaveColumnSettingsAsync(new RgfGridSettings(), true);
                 break;
         }
     }
@@ -416,18 +418,13 @@ public class RgManager : IRgManager
         var res = await _rgfService.GetAboutAsync();
         if (!res.Success)
         {
-            NotificationManager.RaiseEvent(new RgfUserMessage(RecroDict, UserMessageType.Error, res.ErrorMessage), this);
+            await NotificationManager.RaiseEventAsync(new RgfUserMessage(_recroDict, UserMessageType.Error, res.ErrorMessage), this);
         }
         return res.Result ?? "";
     }
 
     public void Dispose()
     {
-        if (_disposables != null)
-        {
-            _disposables.ForEach(disposable => disposable.Dispose());
-            _disposables = null!;
-        }
         if (ListHandler != null)
         {
             ListHandler.Dispose();

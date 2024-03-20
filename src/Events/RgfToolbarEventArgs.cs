@@ -1,10 +1,10 @@
-﻿
+﻿using Recrovit.RecroGridFramework.Abstraction.Models;
+
 namespace Recrovit.RecroGridFramework.Client.Events;
 
-public enum ToolbarAction
+public enum RgfToolbarEventKind
 {
     Invalid,
-
     Refresh,
     ShowFilter,
     Add,
@@ -12,26 +12,17 @@ public enum ToolbarAction
     Read,
     Delete,
     Select,
-
-    ColumnSettings,
-    SaveSettings,
-    ResetSettings,
-
-    EntityEditor,
-    RecroTrack,
-    QueryString,
-    QuickWatch,
-    ExportCsv,
-
-    RgfAbout,
 }
 
 public class RgfToolbarEventArgs : EventArgs
 {
-    public RgfToolbarEventArgs(ToolbarAction command)
+    public RgfToolbarEventArgs(RgfToolbarEventKind eventKind, RgfDynamicDictionary? data = null)
     {
-        Command = command;
+        EventKind = eventKind;
+        Data = data;
     }
 
-    public ToolbarAction Command { get; }
+    public RgfToolbarEventKind EventKind { get; }
+
+    public RgfDynamicDictionary? Data { get; }
 }

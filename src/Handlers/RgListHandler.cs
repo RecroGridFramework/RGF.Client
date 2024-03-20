@@ -1,11 +1,9 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Recrovit.RecroGridFramework.Abstraction.Contracts.API;
-using Recrovit.RecroGridFramework.Abstraction.Contracts.Services;
 using Recrovit.RecroGridFramework.Abstraction.Extensions;
 using Recrovit.RecroGridFramework.Abstraction.Infrastructure.Security;
 using Recrovit.RecroGridFramework.Abstraction.Models;
-using Recrovit.RecroGridFramework.Client.Events;
 using System.Data;
 
 namespace Recrovit.RecroGridFramework.Client.Handlers;
@@ -26,21 +24,48 @@ public interface IRgListHandler
     string? QueryString { get; }
 
     void Dispose();
+
     Task<List<RgfDynamicDictionary>> GetDataListAsync();
-    Task<RgfResult<RgfCustomFunctionResult>> CallCustomFunctionAsync(string functionName, bool requireQueryParams = false, Dictionary<string, object>? customParams = null);
-    RgfDynamicDictionary GetEKey(RgfDynamicDictionary data);
+
+    Task<RgfResult<RgfCustomFunctionResult>> CallCustomFunctionAsync(string functionName, bool requireQueryParams = false, Dictionary<string, object>? customParams = null, RgfEntityKey? entityKey = null);
+
+    RgfDynamicDictionary GetEKey(RgfDynamicDictionary rowData);
+
+    bool GetEntityKey(RgfDynamicDictionary rowData, out RgfEntityKey? entityKey);
+
+    int GetAbsoluteRowIndex(RgfDynamicDictionary rowData);
+
+    int GetRelativeRowIndex(RgfDynamicDictionary rowData);
+
     void InitFilter(RgfFilter.Condition[] conditions);
+
     Task PageChangingAsync(ObservablePropertyEventArgs<int> args);
+
     Task RefreshDataAsync();
+
+    Task RefreshRowAsync(RgfDynamicDictionary rowData);
+
+    Task AddRowAsync(RgfDynamicDictionary rowData);
+
+    Task DeleteRowAsync(RgfEntityKey entityKey);
+
     Task SetFilterAsync(RgfFilter.Condition[] conditions, int? queryTimeout);
+
     Task<bool> SetSortAsync(Dictionary<string, int> sort);
+
     Task<bool> SetVisibleColumnsAsync(IEnumerable<GridColumnSettings> columnSettings);
+
     void ReplaceColumnWidth(int index, int width);
+
     void ReplaceColumnWidth(string alias, int width);
+
     Task MoveColumnAsync(int oldIndex, int newIndex, bool refresh = true);
+
     IEnumerable<int> UserColumns { get; }
+
     RgfGridSettings GetGridSettings();
-    bool GetEntityKey(RgfDynamicDictionary gridDataRec, out RgfEntityKey? entityKey);
+
+    Task<RgfDynamicDictionary?> EnsureVisibleAsync(int index);
 }
 
 internal class RgListHandler : IDisposable, IRgListHandler
@@ -102,6 +127,7 @@ internal class RgListHandler : IDisposable, IRgListHandler
     }
 
     public static Task<RgListHandler> CreateAsync(IRgManager manager, string entityName) => CreateAsync(manager, new RgfGridRequest() { EntityName = entityName });
+
     public static async Task<RgListHandler> CreateAsync(IRgManager manager, RgfGridRequest param)
     {
         var logger = manager.ServiceProvider.GetRequiredService<ILogger<RgListHandler>>();
@@ -119,6 +145,7 @@ internal class RgListHandler : IDisposable, IRgListHandler
             CRUD = new RgfPermissions(_entityDesc.CRUD).BasePermissions;
         }
     }
+
     public BasePermissions CRUD { get; private set; }
 
     public ObservableProperty<int> ItemCount { get; private set; } = new(-1, nameof(ItemCount));
@@ -132,10 +159,10 @@ internal class RgListHandler : IDisposable, IRgListHandler
 
     public async Task<List<RgfDynamicDictionary>> GetDataListAsync()
     {
-        IsLoading = true;
-        List<RgfDynamicDictionary> list = new();
         try
         {
+            IsLoading = true;
+            var list = new List<RgfDynamicDictionary>();
             if (_initialized)
             {
                 int page = PageSize.Value > 0 ? ListParam.Skip / PageSize.Value : 0;
@@ -152,13 +179,13 @@ internal class RgListHandler : IDisposable, IRgListHandler
                     TryGetCacheData(page, out list);
                 }
             }
-            ListDataSource.Value = list;
+            await ListDataSource.SetValueAsync(list);
+            return list;
         }
         finally
         {
             IsLoading = false;
         }
-        return list;
     }
 
     public async Task RefreshDataAsync()
@@ -174,12 +201,13 @@ internal class RgListHandler : IDisposable, IRgListHandler
         }
     }
 
-    public async Task<RgfResult<RgfCustomFunctionResult>> CallCustomFunctionAsync(string functionName, bool requireQueryParams = false, Dictionary<string, object>? customParams = null)
+    public async Task<RgfResult<RgfCustomFunctionResult>> CallCustomFunctionAsync(string functionName, bool requireQueryParams = false, Dictionary<string, object>? customParams = null, RgfEntityKey? entityKey = null)
     {
         var param = new RgfGridRequest(_manager.SessionParams)
         {
             EntityName = _manager.EntityDesc.EntityName,
-            SessionId = _manager.SessionParams.SessionId
+            SessionId = _manager.SessionParams.SessionId,
+            EntityKey = entityKey
         };
         param.FunctionName = functionName;
         if (requireQueryParams)
@@ -332,10 +360,7 @@ internal class RgListHandler : IDisposable, IRgListHandler
 
     public RgfDynamicDictionary GetEKey(RgfDynamicDictionary data)
     {
-        if (data == null)
-        {
-            throw new ArgumentNullException(nameof(data));
-        }
+        ArgumentNullException.ThrowIfNull(data);
         RgfDynamicDictionary ekey = new();
         var props = EntityDesc.Properties.Where(e => e.IsKey).ToArray();
         var keys = props.Select(e => e.ClientName).ToArray();
@@ -363,19 +388,54 @@ internal class RgListHandler : IDisposable, IRgListHandler
         return ekey;
     }
 
-    public bool GetEntityKey(RgfDynamicDictionary gridDataRec, out RgfEntityKey? entityKey)
+    public bool GetEntityKey(RgfDynamicDictionary rowData, out RgfEntityKey? entityKey)
     {
-        if (gridDataRec.TryGetMember("__rgparams", out object? rgparams)
-            && rgparams is Dictionary<string, object> par)
+        var rgparams = rowData.Get<Dictionary<string, object>>("__rgparams");
+        if (rgparams?.TryGetValue("keySign", out var k) == true)
         {
-            if (par.TryGetValue("keySign", out var k))
-            {
-                entityKey = new RgfEntityKey() { Keys = GetEKey(gridDataRec), Signature = k.ToString() };
-                return true;
-            }
+            entityKey = new RgfEntityKey() { Keys = GetEKey(rowData), Signature = k.ToString() };
+            return true;
         }
         entityKey = null;
         return false;
+    }
+
+    public int GetAbsoluteRowIndex(RgfDynamicDictionary rowData)
+    {
+        int idx = -1;
+        if (rowData != null)
+        {
+            var rgparams = rowData.Get<Dictionary<string, object>>("__rgparams");
+            if (rgparams?.TryGetValue("rowIndex", out var rowIndex) == true)
+            {
+                int.TryParse(rowIndex.ToString(), out idx);
+            }
+        }
+        return idx;
+    }
+
+    public int GetRelativeRowIndex(RgfDynamicDictionary rowData)
+    {
+        int idx = GetAbsoluteRowIndex(rowData);
+        if (idx != -1)
+        {
+            idx -= (ActivePage.Value - 1) * PageSize.Value;
+        }
+        return idx;
+    }
+
+    public async Task<RgfDynamicDictionary?> EnsureVisibleAsync(int index)
+    {
+        int idx = index >= 0 && index < ItemCount.Value ? index : throw new ArgumentOutOfRangeException(nameof(index));
+        int first = (ActivePage.Value - 1) * PageSize.Value;
+        if (idx < first || idx >= first + PageSize.Value)
+        {
+            _logger.LogDebug("EnsureVisibleAsync: {index}", index);
+            int page = idx / PageSize.Value + 1;
+            await ActivePage.SetValueAsync(page);
+            first = (ActivePage.Value - 1) * PageSize.Value;
+        }
+        return ListDataSource.Value[index - first];
     }
 
     public RgfGridSettings GetGridSettings()
@@ -402,7 +462,7 @@ internal class RgListHandler : IDisposable, IRgListHandler
 
     private DataCache _dataCache { get; set; } = new DataCache(0);
 
-    private int[] SelectedItems { get; set; } = new int[0];
+    private int[] SelectedItems { get; set; } = [];
 
     private Dictionary<string, object> Options { get; set; } = new();
 
@@ -420,7 +480,6 @@ internal class RgListHandler : IDisposable, IRgListHandler
 
     private async Task InitializeAsync(RgfGridRequest param)
     {
-        _disposables.Add(_manager.NotificationManager.Subscribe<RgfListViewEventArgs>(this, OnListViewEvent));
         _disposables.Add(PageSize.OnAfterChange(this, PageSizeChanging));
         _disposables.Add(ActivePage.OnAfterChange(this, PageChangingAsync));
 
@@ -428,77 +487,92 @@ internal class RgListHandler : IDisposable, IRgListHandler
         await GetDataListAsync();
     }
 
-    private async Task OnListViewEvent(IRgfEventArgs<RgfListViewEventArgs> args)
+    public async Task AddRowAsync(RgfDynamicDictionary rowData)
     {
-        _logger.LogDebug("OnListViewEvent: {cmd}", args.Args.Command);
-
-        RgfDynamicDictionary? newRow = null;
-        RgfDynamicDictionary ekey;
-        if (args.Args.Command == ListViewAction.DeleteRow)
-        {
-            ekey = args.Args.Data;
-        }
-        else
-        {
-            newRow = args.Args.Data;
-            ekey = GetEKey(newRow);
-        }
-        if (!ekey.Any())
+        RgfDynamicDictionary ekey = GetEKey(rowData);
+        if (ekey.Count == 0 || !_dataCache.TryGetData(0, out var pageData) || pageData == null)
         {
             return;
         }
-        var page = args.Args.Command == ListViewAction.AddRow ? 0 : ActivePage.Value - 1;
+        object[][] newArray = new object[pageData.Length + 1][];
+        Array.Copy(pageData, 0, newArray, 1, pageData.Length);
+        newArray[0] = new object[DataColumns.Length];
+        for (int col = 0; col < DataColumns.Length; col++)
+        {
+            var clientName = DataColumns[col];
+            newArray[0][col] = rowData.GetMember(clientName);
+        }
+        _dataCache.Clear();
+        _dataCache.AddOrReplaceMultiple(0, newArray);
+        ItemCount.Value++;
+        if (ActivePage.Value == 1)
+        {
+            await GetDataListAsync();
+        }
+        else
+        {
+            ActivePage.Value = 1;
+        }
+    }
+
+    public async Task RefreshRowAsync(RgfDynamicDictionary rowData)
+    {
+        RgfDynamicDictionary ekey = GetEKey(rowData);
+        if (ekey.Count == 0)
+        {
+            return;
+        }
+        var page = ActivePage.Value - 1;
         if (_dataCache.TryGetData(page, out var pageData) && pageData != null)
         {
             bool refresh = false;
-            if (args.Args.Command == ListViewAction.AddRow && newRow != null)
+            var logger = _manager.ServiceProvider.GetRequiredService<ILogger<RgfDynamicDictionary>>();
+            for (int index = 0; index < pageData.Length; index++)
             {
-                object[][] newArray = new object[pageData.Length + 1][];
-                Array.Copy(pageData, 0, newArray, 1, pageData.Length);
-                newArray[0] = new object[DataColumns.Length];
-                for (int col = 0; col < DataColumns.Length; col++)
+                var row2 = RgfDynamicDictionary.Create(logger, EntityDesc, DataColumns, pageData[index], true);
+                var ekey2 = GetEKey(row2);
+                if (ekey.Equals(ekey2))
                 {
-                    var clientName = DataColumns[col];
-                    newArray[0][col] = newRow.GetMember(clientName);
-                }
-                _dataCache.Clear();
-                _dataCache.AddOrReplaceMultiple(0, newArray);
-                ItemCount.Value++;
-                if (ActivePage.Value == 1)
-                {
+                    for (int col = 0; col < DataColumns.Length; col++)
+                    {
+                        var clientName = DataColumns[col];
+                        //pageData[i][col] = newRow.ContainsKey(clientName) ? newRow.GetMember(clientName) : "?";
+                        pageData[index][col] = rowData.GetMember(clientName);
+                    }
+                    _dataCache.Replace(page, pageData);
                     refresh = true;
-                }
-                else
-                {
-                    ActivePage.Value = 1;
+                    break;
                 }
             }
-            else
+            if (refresh)
             {
-                for (int index = 0; index < pageData.Length; index++)
+                await GetDataListAsync();
+            }
+        }
+    }
+
+    public async Task DeleteRowAsync(RgfEntityKey entityKey)
+    {
+        RgfDynamicDictionary key = entityKey.Keys;
+        if (key.Count == 0)
+        {
+            return;
+        }
+        var page = ActivePage.Value - 1;
+        if (_dataCache.TryGetData(page, out var pageData) && pageData != null)
+        {
+            bool refresh = false;
+            var logger = _manager.ServiceProvider.GetRequiredService<ILogger<RgfDynamicDictionary>>();
+            for (int index = 0; index < pageData.Length; index++)
+            {
+                var row2 = RgfDynamicDictionary.Create(logger, EntityDesc, DataColumns, pageData[index], true);
+                var ekey2 = GetEKey(row2);
+                if (key.Equals(ekey2))
                 {
-                    var row2 = RgfDynamicDictionary.Create(_logger, EntityDesc, DataColumns, pageData[index], true);
-                    var ekey2 = GetEKey(row2);
-                    if (ekey.Equals(ekey2))
-                    {
-                        if (args.Args.Command == ListViewAction.DeleteRow)
-                        {
-                            _dataCache.RemovePages(page, int.MaxValue);
-                            ItemCount.Value--;
-                        }
-                        else if (args.Args.Command == ListViewAction.RefreshRow && newRow != null)
-                        {
-                            for (int col = 0; col < DataColumns.Length; col++)
-                            {
-                                var clientName = DataColumns[col];
-                                //pageData[i][col] = newRow.ContainsKey(clientName) ? newRow.GetMember(clientName) : "?";
-                                pageData[index][col] = newRow.GetMember(clientName);
-                            }
-                            _dataCache.Replace(page, pageData);
-                        }
-                        refresh = true;
-                        break;
-                    }
+                    _dataCache.RemovePages(page, int.MaxValue);
+                    ItemCount.Value--;
+                    refresh = true;
+                    break;
                 }
             }
             if (refresh)
@@ -562,10 +636,14 @@ internal class RgListHandler : IDisposable, IRgListHandler
         list = new List<RgfDynamicDictionary>();
         if (_dataCache.TryGetData(page, out var pageData) && pageData != null)
         {
+            var logger = _manager.ServiceProvider.GetRequiredService<ILogger<RgfDynamicDictionary>>();
+            int idx = this.PageSize.Value * page;
             foreach (var item in pageData)
             {
-                var dict = RgfDynamicDictionary.Create(_logger, EntityDesc, DataColumns, item, true);
-                list.Add(dict);
+                var rowData = RgfDynamicDictionary.Create(logger, EntityDesc, DataColumns, item, true);
+                var rgparams = rowData.GetOrNew<Dictionary<string, object>>("__rgparams");
+                rgparams["rowIndex"] = idx++;
+                list.Add(rowData);
             }
             return true;
         }

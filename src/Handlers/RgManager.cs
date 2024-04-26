@@ -59,7 +59,7 @@ public interface IRgManager : IDisposable
 
     Task<RgfResult<RgfFormResult>> DeleteDataAsync(RgfEntityKey entityKey);
 
-    void BroadcastMessages(RgfMessages messages, object sender);
+    void BroadcastMessages(RgfCoreMessages messages, object sender);
 
     Task OnToolbarCommandAsync(IRgfEventArgs<RgfToolbarEventArgs> arg);
 
@@ -316,7 +316,7 @@ public class RgManager : IRgManager
 
     #endregion
 
-    public void BroadcastMessages(RgfMessages messages, object sender)
+    public void BroadcastMessages(RgfCoreMessages messages, object sender)
     {
         //TODO: error handle
         if (messages != null)

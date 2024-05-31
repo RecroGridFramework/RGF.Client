@@ -6,7 +6,8 @@ namespace Recrovit.RecroGridFramework.Client.Events;
 public enum RgfListEventKind
 {
     CreateRowData,
-    ColumnSettingsChanged
+    ColumnSettingsChanged,
+    AfterRender
 }
 
 public class RgfListEventArgs : EventArgs
@@ -19,6 +20,8 @@ public class RgfListEventArgs : EventArgs
         Properties = properties;
     }
 
+    public static RgfListEventArgs CreateAfterRenderEvent(ComponentBase gridComponent, bool firstRender) => new RgfListEventArgs(RgfListEventKind.AfterRender, gridComponent) { FirstRender = firstRender };
+
     public RgfListEventKind EventKind { get; }
 
     public ComponentBase? BaseGridComponent { get; }
@@ -26,4 +29,6 @@ public class RgfListEventArgs : EventArgs
     public RgfDynamicDictionary? Data { get; }
 
     public IEnumerable<RgfProperty>? Properties { get; }
+
+    public bool FirstRender { get; internal set; }
 }

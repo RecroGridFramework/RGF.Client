@@ -8,6 +8,7 @@ public enum RgfFormEventKind
 {
     Invalid = 0,
     FormDataInitialized,
+    AfterRender,
     ValidationRequested,
     FindEntity
 }
@@ -23,6 +24,8 @@ public class RgfFormEventArgs : EventArgs
         SelectParam = selectParam;
     }
 
+    public static RgfFormEventArgs CreateAfterRenderEvent(ComponentBase formComponent, bool firstRender) => new RgfFormEventArgs(RgfFormEventKind.AfterRender, formComponent) { FirstRender = firstRender };
+
     public RgfFormEventKind EventKind { get; }
 
     public ComponentBase BaseFormComponent { get; }
@@ -32,4 +35,6 @@ public class RgfFormEventArgs : EventArgs
     public RgfForm.Property? Property { get; internal set; }
 
     public RgfSelectParam? SelectParam { get; internal set; }
+
+    public bool FirstRender { get; internal set; }
 }

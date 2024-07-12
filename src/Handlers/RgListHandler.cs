@@ -11,16 +11,23 @@ namespace Recrovit.RecroGridFramework.Client.Handlers;
 public interface IRgListHandler
 {
     ObservableProperty<int> ActivePage { get; }
+
     RgfEntity EntityDesc { get; }
+
     BasePermissions CRUD { get; }
 
     ObservableProperty<List<RgfDynamicDictionary>> ListDataSource { get; }
+
     bool IsFiltered { get; }
+
     bool IsLoading { get; }
 
     ObservableProperty<int> ItemCount { get; }
+
     int ItemsPerPage { get; }
+
     ObservableProperty<int> PageSize { get; }
+
     string? QueryString { get; }
 
     void Dispose();
@@ -28,6 +35,8 @@ public interface IRgListHandler
     Task<List<RgfDynamicDictionary>> GetDataListAsync();
 
     Task<RgfResult<RgfCustomFunctionResult>> CallCustomFunctionAsync(string functionName, bool requireQueryParams = false, Dictionary<string, object>? customParams = null, RgfEntityKey? entityKey = null);
+
+    Task<RgfResult<RgfChartDataResult>> GetChartDataAsync(RgfChartParam chartParam);
 
     RgfDynamicDictionary GetEKey(RgfDynamicDictionary rowData);
 
@@ -203,13 +212,11 @@ internal class RgListHandler : IDisposable, IRgListHandler
 
     public async Task<RgfResult<RgfCustomFunctionResult>> CallCustomFunctionAsync(string functionName, bool requireQueryParams = false, Dictionary<string, object>? customParams = null, RgfEntityKey? entityKey = null)
     {
-        var param = new RgfGridRequest(_manager.SessionParams)
+        var param = new RgfGridRequest(_manager.SessionParams, EntityDesc.EntityName)
         {
-            EntityName = _manager.EntityDesc.EntityName,
-            SessionId = _manager.SessionParams.SessionId,
-            EntityKey = entityKey
+            EntityKey = entityKey,
+            FunctionName = functionName
         };
-        param.FunctionName = functionName;
         if (requireQueryParams)
         {
             param.ListParam = ListParam;
@@ -220,6 +227,16 @@ internal class RgListHandler : IDisposable, IRgListHandler
         }
 
         return await _manager.CallCustomFunctionAsync(param);
+    }
+
+    public Task<RgfResult<RgfChartDataResult>> GetChartDataAsync(RgfChartParam chartParam)
+    {
+        var param = new RgfChartDataRequest()
+        {
+            GridRequest = new RgfGridRequest(_manager.SessionParams, EntityDesc.EntityName, ListParam),
+            ChartParam = chartParam
+        };
+        return _manager.GetChartDataAsync(param);
     }
 
     public Task PageChangingAsync(ObservablePropertyEventArgs<int> args)

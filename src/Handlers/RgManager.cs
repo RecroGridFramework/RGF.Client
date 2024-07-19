@@ -47,6 +47,8 @@ public interface IRgManager : IDisposable
 
     Task<RgfResult<RgfGridResult>> GetRecroGridAsync(RgfGridRequest param);
 
+    Task<RgfResult<RgfChartDataResult>> GetChartDataAsync(RgfChartDataRequest param);
+
     Task<RgfResult<RgfCustomFunctionResult>> CallCustomFunctionAsync(RgfGridRequest param);
 
     Task<ResultType> GetResourceAsync<ResultType>(string name, Dictionary<string, string> query) where ResultType : class;
@@ -199,6 +201,17 @@ public class RgManager : IRgManager
             {
                 SessionParams.GridId = res.Result.Result.GridId;
             }
+        }
+        return res.Result;
+    }
+
+    public async Task<RgfResult<RgfChartDataResult>> GetChartDataAsync(RgfChartDataRequest param)
+    {
+        _logger.LogDebug("GetChartDataAsync: {EntityName}", param.GridRequest.EntityName);
+        var res = await _rgfService.GetChartDataAsync(param);
+        if (!res.Success)
+        {
+            await NotificationManager.RaiseEventAsync(new RgfUserMessage(_recroDict, UserMessageType.Error, res.ErrorMessage), this);
         }
         return res.Result;
     }

@@ -52,17 +52,31 @@ public class RgfEventDispatcher<TEvent, TArgs> where TEvent : notnull where TArg
 
     public void Unsubscribe(TEvent eventName, Func<IRgfEventArgs<TArgs>, Task> handler)
     {
-        if (handler != null && _eventHandlers.TryGetValue(eventName, out var handlers))
+        if (handler != null)
         {
-            handlers.Unsubscribe(handler);
+            if (_eventHandlers.TryGetValue(eventName, out var handlers))
+            {
+                handlers.Unsubscribe(handler);
+            }
+            if (_defaultHandlers.TryGetValue(eventName, out var dhandlers))
+            {
+                dhandlers.Unsubscribe(handler);
+            }
         }
     }
 
     public void Unsubscribe(TEvent eventName, Action<IRgfEventArgs<TArgs>> handler)
     {
-        if (handler != null && _eventHandlers.TryGetValue(eventName, out var handlers))
+        if (handler != null)
         {
-            handlers.Unsubscribe(handler);
+            if (_eventHandlers.TryGetValue(eventName, out var handlers))
+            {
+                handlers.Unsubscribe(handler);
+            }
+            if (_defaultHandlers.TryGetValue(eventName, out var dhandlers))
+            {
+                dhandlers.Unsubscribe(handler);
+            }
         }
     }
 
@@ -84,7 +98,7 @@ public class RgfEventDispatcher<TEvent, TArgs> where TEvent : notnull where TArg
 
     public void Subscribe(TEvent[] eventNames, Func<IRgfEventArgs<TArgs>, Task> handler, bool defaultHandler = false) => Array.ForEach(eventNames, (e) => Subscribe(e, handler, defaultHandler));
     public void Subscribe(TEvent[] eventNames, Action<IRgfEventArgs<TArgs>> handler) => Array.ForEach(eventNames, (e) => Subscribe(e, handler));
-    public void Subscribe(Func<IRgfEventArgs<TArgs>, Task> handler) =>  _genericHandler.Subscribe(handler);
+    public void Subscribe(Func<IRgfEventArgs<TArgs>, Task> handler) => _genericHandler.Subscribe(handler);
     public void Unsubscribe(TEvent[] eventNames, Func<IRgfEventArgs<TArgs>, Task> handler) => Array.ForEach(eventNames, (e) => Unsubscribe(e, handler));
     public void Unsubscribe(TEvent[] eventNames, Action<IRgfEventArgs<TArgs>> handler) => Array.ForEach(eventNames, (e) => Unsubscribe(e, handler));
     public void Unsubscribe(Func<IRgfEventArgs<TArgs>, Task> handler) => _genericHandler.Unsubscribe(handler);

@@ -1,7 +1,4 @@
 ﻿using Recrovit.RecroGridFramework.Abstraction.Models;
-using System;
-using System.Linq;
-using System.Text;
 using System.Text.Json;
 
 namespace Recrovit.RecroGridFramework.Client.Handlers;
@@ -9,20 +6,33 @@ namespace Recrovit.RecroGridFramework.Client.Handlers;
 public interface IRgFilterHandler
 {
     List<RgfFilter.Condition> Conditions { get; }
+
     List<RgfPredefinedFilter> PredefinedFilters { get; }
+
     RgfFilterProperty[] RgfFilterProperties { get; }
 
     int FindCondition(IList<RgfFilter.Condition> conditions, int clientId, out RgfFilter.Condition condition);
+
     void AddBracket(int clientId);
+
     RgfFilter.Condition? AddCondition(int clientId);
+
     bool ChangeProperty(RgfFilter.Condition condition, int newPropertyId);
+
     bool ChangeQueryOperator(RgfFilter.Condition condition, RgfFilter.QueryOperator newOperator);
+
     bool InitFilter(string? jsonConditions);
+
     void RemoveBracket(int clientId);
+
     void RemoveCondition(int clientId);
+
     bool ResetFilter();
+
     RgfPredefinedFilter? SelectPredefinedFilter(string key);
+
     Task<bool> SavePredefinedFilterAsync(RgfPredefinedFilter PredefinedFilter, bool remove = false);
+
     RgfFilter.Condition[] StoreFilter();
 }
 
@@ -48,6 +58,8 @@ internal class RgFilterHandler : IRgFilterHandler
     private RgfFilterProperty[]? _rgfFilterProperties = null;
     private string _jsonConditions = string.Empty;
     private readonly IRgManager _manager;
+    private List<RgfFilter.Condition>? _conditions;
+    private int _maxConditionId;
 
     public RgfFilterProperty[] RgfFilterProperties
     {
@@ -57,13 +69,13 @@ internal class RgFilterHandler : IRgFilterHandler
             {
                 _rgfFilterProperties = _entity.Properties.Join(_filter.Columns, prop => prop.Alias, col => col.Alias,
                     (prop, col) => new RgfFilterProperty(prop, col), StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(e => e.ColTitle)
                     .ToArray();
             }
             return _rgfFilterProperties;
         }
     }
 
-    private List<RgfFilter.Condition>? _conditions;
     public List<RgfFilter.Condition> Conditions
     {
         get => _conditions ?? new List<RgfFilter.Condition>();
@@ -76,7 +88,6 @@ internal class RgFilterHandler : IRgFilterHandler
 
     public List<RgfPredefinedFilter> PredefinedFilters { get; set; }
 
-    private int _maxConditionId { get; set; }
     public bool ResetFilter() => InitFilter(null);
 
     public bool InitFilter(string? jsonConditions)
@@ -93,6 +104,7 @@ internal class RgFilterHandler : IRgFilterHandler
         Conditions = conds;
         return true;
     }
+
     public RgfFilter.Condition[] StoreFilter()
     {
         _jsonConditions = JsonSerializer.Serialize(Conditions, new JsonSerializerOptions() { PropertyNameCaseInsensitive = true });
@@ -115,6 +127,7 @@ internal class RgFilterHandler : IRgFilterHandler
 
     #region Edit
     public void RemoveCondition(int clientId) => RemoveCondition(Conditions, clientId);
+
     private bool RemoveCondition(IList<RgfFilter.Condition> conditions, int clientId)
     {
         var condition = conditions.SingleOrDefault(e => e.ClientId == clientId);
@@ -222,6 +235,7 @@ internal class RgFilterHandler : IRgFilterHandler
         condition = new RgfFilter.Condition();
         return -1;
     }
+
     private bool FindParentCondition(IList<RgfFilter.Condition> conditions, int clientId, out RgfFilter.Condition condition)
     {
         foreach (var item in conditions)
@@ -316,7 +330,7 @@ internal class RgFilterHandler : IRgFilterHandler
                 {
                     //PredefinedFilters.Remove(PredefinedFilter);
                     //We need a new list for the ComboBox DataSource to refresh.
-                    PredefinedFilters = PredefinedFilters.Where(e=>e.Key != filter.Key).ToList();
+                    PredefinedFilters = PredefinedFilters.Where(e => e.Key != filter.Key).ToList();
                 }
                 else
                 {
@@ -334,7 +348,6 @@ internal class RgFilterHandler : IRgFilterHandler
         }
         return false;
     }
-
     #endregion
 }
 
@@ -350,28 +363,42 @@ public class RgfFilterProperty : IRgfProperty
     private readonly RgfFilter.Column _filter;
 
     public RgfFilter.QueryOperator[] Operators => _filter.Operators;
+
     public List<RgfFilter.DictionaryItem> DictionaryItems => _filter.Dictionary;
+
     public Dictionary<string, string> Dictionary => _filter.Dictionary.ToDictionary(e => e.Key, e => e.Value);
 
     #region IRgfProperty
     public int Id { get => _property.Id; set { _property.Id = value; } }
+
     public bool IsKey { get => _property.IsKey; set { _property.IsKey = value; } }
 
     public string Alias { get => _property.Alias; set { _property.Alias = value; } }
+
     public string ClientName { get => _property.ClientName; set { _property.ClientName = value; } }
+
     public int ColPos { get => _property.ColPos; set { _property.ColPos = value; } }
+
     public string ColTitle { get => _property.ColTitle; set { _property.ColTitle = value; } }
+
     public int ColWidth { get => _property.ColWidth; set { _property.ColWidth = value; } }
+
     public bool Editable { get => _property.Editable; set { _property.Editable = value; } }
+
     public string Ex { get => _property.Ex; set { _property.Ex = value; } }
 
     public PropertyListType ListType { get => _property.ListType; set { _property.ListType = value; } }
+
     public PropertyFormType FormType { get => _property.FormType; set { _property.FormType = value; } }
+
     public ClientDataType ClientDataType => _property.ClientDataType;
 
     public Dictionary<string, object> Options { get => _property.Options; set { _property.Options = value; } }
+
     public bool Orderable { get => _property.Orderable; set { _property.Orderable = value; } }
+
     public bool Readable { get => _property.Readable; set { _property.Readable = value; } }
+
     public int Sort { get => _property.Sort; set { _property.Sort = value; } }
     #endregion
 }

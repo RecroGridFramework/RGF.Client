@@ -1,4 +1,5 @@
-﻿using Recrovit.RecroGridFramework.Abstraction.Models;
+﻿using Microsoft.Extensions.Logging;
+using Recrovit.RecroGridFramework.Abstraction.Models;
 using System.Text.Json;
 
 namespace Recrovit.RecroGridFramework.Client.Handlers;
@@ -15,11 +16,11 @@ public interface IRgFilterHandler
 
     void AddBracket(int clientId);
 
-    RgfFilter.Condition? AddCondition(int clientId);
+    RgfFilter.Condition? AddCondition(ILogger logger, int clientId);
 
     bool ChangeProperty(RgfFilter.Condition condition, int newPropertyId);
 
-    bool ChangeQueryOperator(RgfFilter.Condition condition, RgfFilter.QueryOperator newOperator);
+    bool ChangeQueryOperator(ILogger logger, RgfFilter.Condition condition, RgfFilter.QueryOperator newOperator);
 
     bool InitFilter(string? jsonConditions);
 
@@ -187,7 +188,7 @@ internal class RgFilterHandler : IRgFilterHandler
         }
     }
 
-    public RgfFilter.Condition? AddCondition(int clientId)
+    public RgfFilter.Condition? AddCondition(ILogger logger, int clientId)
     {
         RgfFilter.Condition? newCondition = null;
         var prop = RgfFilterProperties.FirstOrDefault();
@@ -200,6 +201,9 @@ internal class RgFilterHandler : IRgFilterHandler
                 LogicalOperator = RgfFilter.LogicalOperator.And,
                 QueryOperator = prop.Operators.First(),
             };
+
+            newCondition.Param1 = GetDefaultValue(newCondition, prop);
+            logger.LogDebug("AddCondition: {ColTitle}", prop.ColTitle);
 
             int idx = FindCondition(Conditions, clientId, out var condition);
             if (idx != -1)
@@ -266,18 +270,18 @@ internal class RgFilterHandler : IRgFilterHandler
         if (prop != null && condition.PropertyId != newPropertyId)
         {
             condition.PropertyId = newPropertyId;
-            condition.Param1 = condition.Param2 = null;
-
             if (!prop.Operators.Contains(condition.QueryOperator))
             {
                 condition.QueryOperator = prop.Operators.First();
             }
+            condition.Param1 = GetDefaultValue(condition, prop);
+            condition.Param2 = null;
             return true;
         }
         return false;
     }
 
-    public bool ChangeQueryOperator(RgfFilter.Condition condition, RgfFilter.QueryOperator newOperator)
+    public bool ChangeQueryOperator(ILogger logger, RgfFilter.Condition condition, RgfFilter.QueryOperator newOperator)
     {
         if (newOperator != RgfFilter.QueryOperator.Invalid && newOperator != condition.QueryOperator)
         {
@@ -292,16 +296,38 @@ internal class RgFilterHandler : IRgFilterHandler
                 {
                     condition.Param1 = null;
                 }
-                if (!intervalTypes.Contains(newOperator))
+                if (!intervalTypes.Contains(newOperator) || !intervalTypes.Contains(condition.QueryOperator))
                 {
                     condition.Param2 = null;
                 }
-
+                if (condition.Param1 == null)
+                {
+                    condition.Param1 = GetDefaultValue(condition, prop);
+                }
+                logger.LogDebug("ChangeQueryOperator: {QueryOperator}", newOperator);
                 condition.QueryOperator = newOperator;
                 return true;
             }
         }
         return false;
+    }
+
+    private static object? GetDefaultValue(RgfFilter.Condition condition, RgfFilterProperty property)
+    {
+        if (property.ClientDataType == ClientDataType.String)
+        {
+            switch (condition.QueryOperator)
+            {
+                case RgfFilter.QueryOperator.Equal:
+                case RgfFilter.QueryOperator.NotEqual:
+                case RgfFilter.QueryOperator.Like:
+                case RgfFilter.QueryOperator.NotLike:
+                case RgfFilter.QueryOperator.Interval:
+                case RgfFilter.QueryOperator.IntervalE:
+                    return string.Empty;
+            }
+        }
+        return null;
     }
 
     public RgfPredefinedFilter? SelectPredefinedFilter(string key)

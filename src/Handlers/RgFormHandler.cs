@@ -216,7 +216,7 @@ internal class RgFormHandler : IRgFormHandler
                     var origData = new RgfDynamicData(prop.ClientDataType, orig.OrigValue);
                     if (!origData.Equals(newData))
                     {
-                        _logger.LogDebug("ChangedFormData: name:{name}, new:{new}, orig:{orig}", name, newData, origData);
+                        _logger.LogDebug("ChangedFormData: name:{name}, new:{new}, orig:{orig}, origstr:{origstr}", name, newData, origData, orig.OrigValue);
                         changes.SetMember(prop.ClientName, newData.ToString());
                     }
                 }

@@ -8,6 +8,7 @@ using Recrovit.RecroGridFramework.Client.Events;
 using Recrovit.RecroGridFramework.Client.Models;
 using Recrovit.RecroGridFramework.Client.Services;
 using System.ComponentModel;
+using System.Reflection;
 
 namespace Recrovit.RecroGridFramework.Client.Handlers;
 
@@ -433,7 +434,17 @@ public class RgManager : IRgManager
         {
             await NotificationManager.RaiseEventAsync(new RgfUserMessage(_recroDict, UserMessageType.Error, res.ErrorMessage), this);
         }
-        return res.Result ?? "";
+        string about = res.Result ?? "";
+        if (!string.IsNullOrEmpty(about))
+        {
+            var assembly = AppDomain.CurrentDomain.GetAssemblies().FirstOrDefault(a => a.GetName().Name == "Recrovit.RecroGridFramework.Client.Blazor.UI");
+            if (assembly != null)
+            {
+                var ver = assembly.GetCustomAttribute<AssemblyFileVersionAttribute>()?.Version;
+                about = about.Replace("<div class=\"client-ver\"></div>", $"<div class=\"client-ver\">RecroGrid Framework Blazor.UI v{ver}</div>");
+            }
+        }
+        return about;
     }
 
     public void Dispose()

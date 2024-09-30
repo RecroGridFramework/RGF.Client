@@ -10,7 +10,8 @@ public enum RgfFormEventKind
     FormDataInitialized,
     AfterRender,
     ValidationRequested,
-    FindEntity
+    FindEntity,
+    ParametersSet
 }
 
 public class RgfFormEventArgs : EventArgs

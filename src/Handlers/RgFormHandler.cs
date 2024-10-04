@@ -16,7 +16,7 @@ public interface IRgFormHandler : IDisposable
 
     RgfDynamicDictionary CollectChangedFormData(FormViewData formViewData);
 
-    Task<RgfResult<RgfFormResult>> SaveAsync(FormViewData formViewData, bool skeleton = false);
+    Task<RgfResult<RgfFormResult>> SaveAsync(FormViewData formViewData, bool refresh = false);
 
     bool IsModified(FormViewData formViewData, RgfForm.Property property);
 }
@@ -157,12 +157,12 @@ internal class RgFormHandler : IRgFormHandler
         return true;
     }
 
-    public async Task<RgfResult<RgfFormResult>> SaveAsync(FormViewData formViewData, bool skeleton = false)
+    public async Task<RgfResult<RgfFormResult>> SaveAsync(FormViewData formViewData, bool refresh = false)
     {
         _logger.LogDebug("SaveAsync");
         RgfGridRequest param = new(_manager.SessionParams);
         param.EntityKey = formViewData.EntityKey;
-        if (skeleton)
+        if (refresh)
         {
             param.Skeleton = true;
         }

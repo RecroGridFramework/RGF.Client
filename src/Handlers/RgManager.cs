@@ -36,15 +36,21 @@ public interface IRgManager : IDisposable
 
     ObservableProperty<int> ActivePage { get; }
 
+    List<RgfGridSetting> GridSettingList { get; }
+
     bool IsFiltered { get; }
 
     string EntityDomId => $"RecroGrid-{SessionParams?.GridId}";
 
     Task<IRgFilterHandler> GetFilterHandlerAsync();
 
+    Task InitFilterHandlerAsync(string condition);
+
     Task<RgfResult<RgfPredefinedFilterResult>> SavePredefinedFilterAsync(RgfPredefinedFilter predefinedFilter);
 
-    Task SaveColumnSettingsAsync(RgfGridSettings settings, bool recreate = false);
+    Task<RgfGridSetting?> SaveGridSettingsAsync(RgfGridSettings settings, bool recreate = false);
+
+    Task<bool> DeleteGridSettingsAsync(int gridSettingsId);
 
     Task<RgfResult<RgfGridResult>> GetRecroGridAsync(RgfGridRequest param);
 
@@ -113,28 +119,45 @@ public class RgManager : IRgManager
         return true;
     }
 
+
     public IServiceProvider ServiceProvider { get; }
+
     private IRecroDictService _recroDict { get; }
+
     public IRecroSecService _recroSec { get; }
+
     public IRgfNotificationManager NotificationManager { get; }
+
     public IRgListHandler ListHandler { get; private set; } = default!;
 
+
     public RgfSessionParams SessionParams { get; private set; }
+
     public RgfEntity EntityDesc => ListHandler.EntityDesc;
 
+
     public ObservableProperty<List<RgfDynamicDictionary>> SelectedItems { get; private set; } = new(new(), nameof(SelectedItems));
+
     public ObservableProperty<FormViewKey?> FormViewKey { get; private set; } = new(new(), nameof(FormViewKey));
+
     public RgfSelectParam? SelectParam { get; private set; }
 
+
     public ObservableProperty<int> ItemCount => ListHandler.ItemCount;
+
     public ObservableProperty<int> PageSize => ListHandler.PageSize;
+
     public ObservableProperty<int> ActivePage => ListHandler.ActivePage;
+
+    public List<RgfGridSetting> GridSettingList { get; private set; } = [];
+
 
     public bool IsFiltered => ListHandler.IsFiltered;
 
     public event Action<bool> RefreshEntity = default!;
 
     private IRgfApiService _rgfService { get; }
+
     private ILogger<RgManager> _logger { get; }
 
     private RgFilterHandler? _filterHandler { get; set; }
@@ -170,6 +193,19 @@ public class RgManager : IRgManager
         return _filterHandler!;
     }
 
+    public async Task InitFilterHandlerAsync(string condition)
+    {
+        if (_filterHandler != null)
+        {
+            _filterHandler.InitFilter(condition);
+            ListHandler.InitFilter(_filterHandler.StoreFilter());
+        }
+        else if (!string.IsNullOrEmpty(condition))
+        {
+            await GetFilterHandlerAsync();
+        }
+    }
+
     public async Task<RgfResult<RgfPredefinedFilterResult>> SavePredefinedFilterAsync(RgfPredefinedFilter predefinedFilter)
     {
         RgfGridRequest param = new(SessionParams)
@@ -201,6 +237,10 @@ public class RgManager : IRgManager
             if (res.Result.Result?.GridId != null)
             {
                 SessionParams.GridId = res.Result.Result.GridId;
+            }
+            if (res.Result.Result?.GridSettingList != null)
+            {
+                GridSettingList = res.Result.Result.GridSettingList;
             }
         }
         return res.Result;
@@ -257,13 +297,13 @@ public class RgManager : IRgManager
         RefreshEntity.Invoke(false);
     }
 
-    public virtual async Task SaveColumnSettingsAsync(RgfGridSettings settings, bool recreate = false)
+    public virtual async Task<RgfGridSetting?> SaveGridSettingsAsync(RgfGridSettings settings, bool recreate = false)
     {
         RgfGridRequest param = new(SessionParams)
         {
             GridSettings = settings
         };
-        var res = await _rgfService.SaveColumnSettingsAsync(param);
+        var res = await _rgfService.SaveGridSettingsAsync(param);
         if (!res.Success)
         {
             await NotificationManager.RaiseEventAsync(new RgfUserMessage(_recroDict, UserMessageType.Error, res.ErrorMessage), this);
@@ -278,6 +318,30 @@ public class RgManager : IRgManager
             {
                 await RecreateAsync();
             }
+        }
+        return res.Result?.Result;
+    }
+
+    public virtual async Task<bool> DeleteGridSettingsAsync(int gridSettingsId)
+    {
+        RgfGridRequest param = new(SessionParams)
+        {
+            GridSettings = new RgfGridSettings() { GridSettingsId = gridSettingsId }
+        };
+        var res = await _rgfService.DeleteGridSettingsAsync(param);
+        if (!res.Success)
+        {
+            await NotificationManager.RaiseEventAsync(new RgfUserMessage(_recroDict, UserMessageType.Error, res.ErrorMessage), this);
+            return false;
+        }
+        else
+        {
+            GridSettingList = GridSettingList.Where(e => e.GridSettingsId != gridSettingsId).ToList();
+            if (res.Result != null && !res.Result.Success)
+            {
+                BroadcastMessages(res.Result.Messages, this);
+            }
+            return true;
         }
     }
 

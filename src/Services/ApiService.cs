@@ -3,6 +3,7 @@ using Recrovit.RecroGridFramework.Abstraction.Contracts.API;
 using Recrovit.RecroGridFramework.Abstraction.Contracts.Services;
 using Recrovit.RecroGridFramework.Abstraction.Infrastructure.API;
 using Recrovit.RecroGridFramework.Abstraction.Infrastructure.Security;
+using Recrovit.RecroGridFramework.Abstraction.Models;
 using System.Text.Json;
 
 namespace Recrovit.RecroGridFramework.Client.Services;
@@ -116,7 +117,9 @@ public static class IRgfServiceExtension
 
     public static Task<IRgfApiResponse<RgfResult<RgfFormResult>>> DeleteDataAsync(this IRgfApiService service, RgfGridRequest param) => service.PostAsync<RgfResult<RgfFormResult>, RgfGridRequest>($"/rgf/api/entity/DeleteData", param);
 
-    public static Task<IRgfApiResponse<RgfResult<RgfEmptyResult>>> SaveColumnSettingsAsync(this IRgfApiService service, RgfGridRequest param) => service.PostAsync<RgfResult<RgfEmptyResult>, RgfGridRequest>($"/rgf/api/entity/SaveColumnSettings", param);
+    public static Task<IRgfApiResponse<RgfResult<RgfGridSetting>>> SaveGridSettingsAsync(this IRgfApiService service, RgfGridRequest param) => service.PostAsync<RgfResult<RgfGridSetting>, RgfGridRequest>($"/rgf/api/entity/SaveGridSettings", param);
+
+    public static Task<IRgfApiResponse<RgfResult<RgfEmptyResult>>> DeleteGridSettingsAsync(this IRgfApiService service, RgfGridRequest param) => service.PostAsync<RgfResult<RgfEmptyResult>, RgfGridRequest>($"/rgf/api/entity/DeleteGridSettings", param);
 
     public static Task<IRgfApiResponse<RgfResult<RgfPredefinedFilterResult>>> SavePredefinedFilterAsync(this IRgfApiService service, RgfGridRequest param) => service.PostAsync<RgfResult<RgfPredefinedFilterResult>, RgfGridRequest>($"/rgf/api/entity/SavePredefinedFilter", param);
 

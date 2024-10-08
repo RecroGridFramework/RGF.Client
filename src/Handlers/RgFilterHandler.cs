@@ -22,7 +22,7 @@ public interface IRgFilterHandler
 
     bool ChangeQueryOperator(ILogger logger, RgfFilter.Condition condition, RgfFilter.QueryOperator newOperator);
 
-    bool InitFilter(string? jsonConditions);
+    bool InitFilter(string? jsonCondition);
 
     void RemoveBracket(int clientId);
 
@@ -47,10 +47,7 @@ internal class RgFilterHandler : IRgFilterHandler
         {
             _filter = new RgfFilter();
         }
-        if (string.IsNullOrEmpty(jsonConditions) || !InitFilter(jsonConditions))
-        {
-            Conditions = new List<RgfFilter.Condition>();
-        }
+        InitFilter(jsonConditions);
         PredefinedFilters = predefinedFilters ?? new List<RgfPredefinedFilter>();
     }
 
@@ -79,7 +76,14 @@ internal class RgFilterHandler : IRgFilterHandler
 
     public List<RgfFilter.Condition> Conditions
     {
-        get => _conditions ?? new List<RgfFilter.Condition>();
+        get
+        {
+            if (_conditions == null)
+            {
+                _conditions = [];
+            }
+            return _conditions;
+        }
         set
         {
             _conditions = value;
@@ -89,21 +93,28 @@ internal class RgFilterHandler : IRgFilterHandler
 
     public List<RgfPredefinedFilter> PredefinedFilters { get; set; }
 
-    public bool ResetFilter() => InitFilter(null);
+    public bool ResetFilter() => InitFilter(_jsonConditions);
 
     public bool InitFilter(string? jsonConditions)
     {
-        if (jsonConditions != null)
+        if (string.IsNullOrEmpty(jsonConditions))
         {
-            _jsonConditions = jsonConditions;
+            _jsonConditions = string.Empty;
+            Conditions = [];
+            return true;
         }
-        var conds = JsonSerializer.Deserialize<List<RgfFilter.Condition>>(_jsonConditions, new JsonSerializerOptions() { PropertyNameCaseInsensitive = true });
-        if (conds == null)
+        try
         {
-            return false;
+            var conds = JsonSerializer.Deserialize<List<RgfFilter.Condition>>(jsonConditions, new JsonSerializerOptions() { PropertyNameCaseInsensitive = true });
+            if (conds != null)
+            {
+                _jsonConditions = jsonConditions;
+                Conditions = conds;
+                return true;
+            }
         }
-        Conditions = conds;
-        return true;
+        catch { }
+        return false;
     }
 
     public RgfFilter.Condition[] StoreFilter()
@@ -206,6 +217,7 @@ internal class RgFilterHandler : IRgFilterHandler
             logger.LogDebug("AddCondition: {ColTitle}", prop.ColTitle);
 
             int idx = FindCondition(Conditions, clientId, out var condition);
+            Console.WriteLine(idx);
             if (idx != -1)
             {
                 condition.Conditions.Add(newCondition);

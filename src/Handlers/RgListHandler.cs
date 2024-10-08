@@ -77,6 +77,8 @@ public interface IRgListHandler
     RgfGridSettings GetGridSettings();
 
     Task<RgfDynamicDictionary?> EnsureVisibleAsync(int index);
+
+    RgfDynamicDictionary? GetRowData(int index);
 }
 
 internal class RgListHandler : IDisposable, IRgListHandler
@@ -468,6 +470,16 @@ internal class RgListHandler : IDisposable, IRgListHandler
             first = (ActivePage.Value - 1) * PageSize.Value;
         }
         return ListDataSource.Value[index - first];
+    }
+
+    public RgfDynamicDictionary? GetRowData(int index)
+    {
+        int first = (ActivePage.Value - 1) * PageSize.Value;
+        if (index >= first && index < first + PageSize.Value)
+        {
+            return ListDataSource.Value[index - first];
+        }
+        return null;
     }
 
     public RgfGridSettings GetGridSettings()

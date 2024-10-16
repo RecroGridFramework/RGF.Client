@@ -1,5 +1,4 @@
-﻿using Microsoft.AspNetCore.Components;
-using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Recrovit.RecroGridFramework.Abstraction.Contracts.Services;
 using Recrovit.RecroGridFramework.Client.Events;
@@ -16,13 +15,13 @@ internal class RgfEventNotificationService : IRgfEventNotificationService
         this._logger = logger;
     }
 
-    private ConcurrentDictionary<string, RgfNotificationManager> _scope { get; set; } = new();
+    private ConcurrentDictionary<string, RgfNotificationManager> _scope = new();
 
     public IRgfNotificationManager GetNotificationManager(string scope) => _scope.GetOrAdd(scope, e => new RgfNotificationManager(_logger, this, scope));
 
-    public void RaiseEvent<TArgs>(string scope, TArgs args, object sender) where TArgs : EventArgs => GetNotificationManager(scope).RaiseEventAsync<TArgs>(args, sender);
+    public Task RaiseEvent<TArgs>(string scope, TArgs args, object sender) where TArgs : EventArgs => GetNotificationManager(scope).RaiseEventAsync<TArgs>(args, sender);
 
-    public IRgfObserver<IRgfEventArgs<TArgs>> Subscribe<TArgs>(string scope, object receiver, Action<IRgfEventArgs<TArgs>> handler) where TArgs : EventArgs => GetNotificationManager(scope).Subscribe<TArgs>(receiver, handler);
+    public IRgfObserver<IRgfEventArgs<TArgs>> Subscribe<TArgs>(string scope, Action<IRgfEventArgs<TArgs>> handler) where TArgs : EventArgs => GetNotificationManager(scope).Subscribe<TArgs>(handler);
 
     public bool RemoveNotificationManager(string scope) => _scope.Remove(scope, out _);
 }
@@ -42,7 +41,7 @@ internal class RgfNotificationManager : IRgfNotificationManager
         _scope = scope;
     }
 
-    private ConcurrentDictionary<string, object> _observableEvent { get; set; } = new();
+    private ConcurrentDictionary<string, object> _observableEvent = new();
 
     public void Dispose()
     {
@@ -72,18 +71,18 @@ internal class RgfNotificationManager : IRgfNotificationManager
         return observable.RaiseEventAsync(new RgfEventArgs<TArgs>(sender, args));
     }
 
-    public IRgfObserver<IRgfEventArgs<TArgs>> Subscribe<TArgs>(object receiver, Action<IRgfEventArgs<TArgs>> handler) where TArgs : EventArgs
+    public IRgfObserver<IRgfEventArgs<TArgs>> Subscribe<TArgs>(Action<IRgfEventArgs<TArgs>> handler) where TArgs : EventArgs
     {
         var observable = (RgfObservableEvent<TArgs>)GetObservableEvents<TArgs>();
-        var observer = new RgfObserver<TArgs>(receiver, handler);
+        var observer = new RgfObserver<TArgs>(handler);
         observer.Subscribe(observable);
         return observer;
     }
 
-    public IRgfObserver<IRgfEventArgs<TArgs>> Subscribe<TArgs>(object receiver, Func<IRgfEventArgs<TArgs>, Task> handler) where TArgs : EventArgs
+    public IRgfObserver<IRgfEventArgs<TArgs>> Subscribe<TArgs>(Func<IRgfEventArgs<TArgs>, Task> handler) where TArgs : EventArgs
     {
         var observable = (RgfObservableEvent<TArgs>)GetObservableEvents<TArgs>();
-        var observer = new RgfObserver<TArgs>(receiver, handler);
+        var observer = new RgfObserver<TArgs>(handler);
         observer.Subscribe(observable);
         return observer;
     }
@@ -98,7 +97,7 @@ internal class RgfNotificationManager : IRgfNotificationManager
             this._logger = logger;
         }
 
-        private List<IRgfObserver<IRgfEventArgs<TArgs>>> observers { get; } = new();
+        private List<IRgfObserver<IRgfEventArgs<TArgs>>> _observers = new();
 
         private class Unsubscriber : IDisposable
         {
@@ -122,17 +121,17 @@ internal class RgfNotificationManager : IRgfNotificationManager
 
         public IDisposable Subscribe(IRgfObserver<IRgfEventArgs<TArgs>> observer)
         {
-            if (!observers.Contains(observer))
+            if (!_observers.Contains(observer))
             {
-                observers.Add(observer);
+                _observers.Add(observer);
             }
-            return new Unsubscriber(observers, observer);
+            return new Unsubscriber(_observers, observer);
         }
 
         public async Task RaiseEventAsync(IRgfEventArgs<TArgs> args)
         {
             _logger.LogDebug("{EventType}: {Args}", typeof(TArgs), args?.Args?.ToString());
-            foreach (var observer in observers)
+            foreach (var observer in _observers)
             {
                 await observer.OnNextAsync(args!);
             }
@@ -141,18 +140,19 @@ internal class RgfNotificationManager : IRgfNotificationManager
 
     private class RgfObserver<TArgs> : IRgfObserver<IRgfEventArgs<TArgs>> where TArgs : EventArgs
     {
-        public RgfObserver(object receiver, Action<IRgfEventArgs<TArgs>> handler)
+        public RgfObserver(Action<IRgfEventArgs<TArgs>> handler)
         {
-            _callback = EventCallback.Factory.Create(receiver, handler);
+            _handler = handler;
         }
 
-        public RgfObserver(object receiver, Func<IRgfEventArgs<TArgs>, Task> handler)
+        public RgfObserver(Func<IRgfEventArgs<TArgs>, Task> handler)
         {
-            _callback = EventCallback.Factory.Create(receiver, handler);
+            _handlerAsync = handler;
         }
 
         private IDisposable? unsubscriber = null;
-        private EventCallback<IRgfEventArgs<TArgs>> _callback = new();
+        private readonly Action<IRgfEventArgs<TArgs>>? _handler;
+        private readonly Func<IRgfEventArgs<TArgs>, Task>? _handlerAsync;
 
         public void Subscribe(IRgfObservable<IRgfEventArgs<TArgs>> provider)
         {
@@ -168,7 +168,11 @@ internal class RgfNotificationManager : IRgfNotificationManager
         [Obsolete("Use instead Subscribe(IRgfObserver<IRgfEventArgs<TArgs>>)", true)]
         public void OnNext(IRgfEventArgs<TArgs> value) => OnNextAsync(value);
 
-        public Task OnNextAsync(IRgfEventArgs<TArgs> value) => _callback.InvokeAsync(value);
+        public Task OnNextAsync(IRgfEventArgs<TArgs> value)
+        {
+            _handler?.Invoke(value);
+            return _handlerAsync?.Invoke(value) ?? Task.CompletedTask;
+        }
 
         public void Dispose() => Unsubscribe();
     }

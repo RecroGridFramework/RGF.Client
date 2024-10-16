@@ -20,6 +20,8 @@ public interface IRgManager : IDisposable
 
     IRgfNotificationManager NotificationManager { get; }
 
+    IRgfNotificationManager ToastManager { get; }
+
     IRgListHandler ListHandler { get; }
 
     RgfEntity EntityDesc { get; }
@@ -87,6 +89,7 @@ public class RgManager : IRgManager
         _recroDict = serviceProvider.GetRequiredService<IRecroDictService>();
         _recroSec = serviceProvider.GetRequiredService<IRecroSecService>();
         NotificationManager = new RgfNotificationManager(serviceProvider);
+        ToastManager = serviceProvider.GetRequiredService<IRgfEventNotificationService>().GetNotificationManager(RgfToastEvent.NotificationManagerScope);
     }
 
     public async Task<bool> InitializeAsync(RgfGridRequest param, bool formOnly = false)
@@ -127,6 +130,8 @@ public class RgManager : IRgManager
     public IRecroSecService _recroSec { get; }
 
     public IRgfNotificationManager NotificationManager { get; }
+
+    public IRgfNotificationManager ToastManager { get; }
 
     public IRgListHandler ListHandler { get; private set; } = default!;
 
@@ -303,6 +308,9 @@ public class RgManager : IRgManager
         {
             GridSettings = settings
         };
+        bool reset = settings.ColumnSettings.Length == 0;
+        var toast = RgfToastEvent.CreateActionEvent(_recroDict.GetRgfUiString("Request"), EntityDesc.Title, _recroDict.GetRgfUiString(reset ? "ResetSettings" : "SaveSettings"));
+        await ToastManager.RaiseEventAsync(toast, this);
         var res = await _rgfService.SaveGridSettingsAsync(param);
         if (!res.Success)
         {
@@ -310,6 +318,10 @@ public class RgManager : IRgManager
         }
         else
         {
+            if (res.Result.Success)
+            {
+                await ToastManager.RaiseEventAsync(RgfToastEvent.RecreateToastWithStatus(toast, _recroDict.GetRgfUiString("Processed"), RgfToastType.Success), this);
+            }
             if (res.Result != null && !res.Result.Success)
             {
                 BroadcastMessages(res.Result.Messages, this);

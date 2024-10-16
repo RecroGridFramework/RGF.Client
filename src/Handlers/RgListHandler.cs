@@ -1,9 +1,11 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Recrovit.RecroGridFramework.Abstraction.Contracts.API;
+using Recrovit.RecroGridFramework.Abstraction.Contracts.Services;
 using Recrovit.RecroGridFramework.Abstraction.Extensions;
 using Recrovit.RecroGridFramework.Abstraction.Infrastructure.Security;
 using Recrovit.RecroGridFramework.Abstraction.Models;
+using Recrovit.RecroGridFramework.Client.Events;
 using System.Data;
 
 namespace Recrovit.RecroGridFramework.Client.Handlers;
@@ -137,6 +139,7 @@ internal class RgListHandler : IDisposable, IRgListHandler
     {
         _logger = logger;
         _manager = manager;
+        _recroDict = manager.ServiceProvider.GetRequiredService<IRecroDictService>();
     }
 
     public static Task<RgListHandler> CreateAsync(IRgManager manager, string entityName) => CreateAsync(manager, new RgfGridRequest() { EntityName = entityName });
@@ -216,6 +219,7 @@ internal class RgListHandler : IDisposable, IRgListHandler
 
     public async Task RefreshDataAsync(int? gridSettingsId = null)
     {
+        await _manager.ToastManager.RaiseEventAsync(new RgfToastEvent(EntityDesc.Title, _recroDict.GetRgfUiString("Refresh"), delay: 2000), this);
         ClearCache();
         if (ActivePage.Value == 1)
         {
@@ -495,8 +499,9 @@ internal class RgListHandler : IDisposable, IRgListHandler
         return settings;
     }
 
-    private readonly ILogger<RgListHandler> _logger;
+    private readonly ILogger _logger;
     private readonly IRgManager _manager;
+    private readonly IRecroDictService _recroDict;
     private RgfEntity? _entityDesc;
     private bool _initialized = false;
 

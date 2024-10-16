@@ -1,8 +1,10 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Recrovit.RecroGridFramework.Abstraction.Contracts.API;
+using Recrovit.RecroGridFramework.Abstraction.Contracts.Services;
 using Recrovit.RecroGridFramework.Abstraction.Extensions;
 using Recrovit.RecroGridFramework.Abstraction.Models;
+using Recrovit.RecroGridFramework.Client.Events;
 using Recrovit.RecroGridFramework.Client.Models;
 using System.Data;
 
@@ -25,8 +27,9 @@ internal class RgFormHandler : IRgFormHandler
 {
     public RgFormHandler(ILogger<RgFormHandler> logger, IRgManager manager)
     {
-        _manager = manager;
         _logger = logger;
+        _manager = manager;
+        _recroDict = manager.ServiceProvider.GetRequiredService<IRecroDictService>();
     }
 
     public static IRgFormHandler Create(IRgManager manager)
@@ -51,10 +54,11 @@ internal class RgFormHandler : IRgFormHandler
         return result;
     }
 
-    private ILogger _logger { get; set; }
+    private readonly ILogger _logger;
 
-    private IRgManager _manager { get; }
+    private readonly IRgManager _manager;
 
+    private readonly IRecroDictService _recroDict;
 
     public bool InitFormData(RgfFormResult formResult, out FormViewData? formViewData)
     {
@@ -173,9 +177,13 @@ internal class RgFormHandler : IRgFormHandler
         {
             return new RgfResult<RgfFormResult>() { Success = !isNewRow };
         }
+
+        var toast = RgfToastEvent.CreateActionEvent(_recroDict.GetRgfUiString("Request"), _manager.EntityDesc.Title, _recroDict.GetRgfUiString("Save"));
+        await _manager.ToastManager.RaiseEventAsync(toast, this);
         var res = await _manager.UpdateFormDataAsync(param);
         if (res.Success && res.Result?.GridResult != null)
         {
+            await _manager.ToastManager.RaiseEventAsync(RgfToastEvent.RecreateToastWithStatus(toast, _recroDict.GetRgfUiString("Processed"), RgfToastType.Success), this);
             if (isNewRow)
             {
                 await _manager.ListHandler.AddRowAsync(new RgfDynamicDictionary(res.Result.GridResult.DataColumns, res.Result.GridResult.Data[0]));

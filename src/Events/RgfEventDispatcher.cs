@@ -114,9 +114,11 @@ public class RgfEventArgs<TArgs> : IRgfEventArgs<TArgs> where TArgs : EventArgs
 
     public object Sender { get; }
 
+    public DateTime TriggeredAt { get; } = DateTime.Now;
+
+    public TArgs Args { get; }
+
     public bool Handled { get; set; }
 
     public bool PreventDefault { get; set; }
-
-    public TArgs Args { get; }
 }

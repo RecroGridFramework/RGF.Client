@@ -54,19 +54,21 @@ public interface IRgManager : IDisposable
 
     Task<bool> DeleteGridSettingsAsync(int gridSettingsId);
 
-    Task<RgfResult<RgfGridResult>> GetRecroGridAsync(RgfGridRequest param);
+    Task<RgfResult<RgfGridResult>> GetRecroGridAsync(RgfGridRequest request);
 
-    Task<RgfResult<RgfChartDataResult>> GetChartDataAsync(RgfChartDataRequest param);
+    Task<RgfResult<RgfGridResult>> GetAggregateDataAsync(RgfGridRequest request);
 
-    Task<RgfResult<RgfCustomFunctionResult>> CallCustomFunctionAsync(RgfGridRequest param);
+    Task<RgfResult<RgfCustomFunctionResult>> CallCustomFunctionAsync(RgfGridRequest request);
 
     Task<ResultType> GetResourceAsync<ResultType>(string name, Dictionary<string, string> query) where ResultType : class;
 
+    Task RecreateAsync(RgfGridRequest? request = null);
+
     IRgFormHandler CreateFormHandler();
 
-    Task<RgfResult<RgfFormResult>> GetFormAsync(RgfGridRequest param);
+    Task<RgfResult<RgfFormResult>> GetFormAsync(RgfGridRequest request);
 
-    Task<RgfResult<RgfFormResult>> UpdateFormDataAsync(RgfGridRequest param);
+    Task<RgfResult<RgfFormResult>> UpdateFormDataAsync(RgfGridRequest request);
 
     Task<RgfResult<RgfFormResult>> DeleteDataAsync(RgfEntityKey entityKey);
 
@@ -75,6 +77,7 @@ public interface IRgManager : IDisposable
     Task OnToolbarCommandAsync(IRgfEventArgs<RgfToolbarEventArgs> arg);
 
     event Action<bool> RefreshEntity;
+
     Task<string> AboutAsync();
 }
 
@@ -92,7 +95,7 @@ public class RgManager : IRgManager
         ToastManager = serviceProvider.GetRequiredService<IRgfEventNotificationService>().GetNotificationManager(RgfToastEvent.NotificationManagerScope);
     }
 
-    public async Task<bool> InitializeAsync(RgfGridRequest param, bool formOnly = false)
+    public async Task<bool> InitializeAsync(RgfGridRequest request, bool formOnly = false)
     {
         _filterHandler = null;
         if (ListHandler != null)
@@ -100,8 +103,8 @@ public class RgManager : IRgManager
             ListHandler.Dispose();
         }
 
-        SelectParam = param.SelectParam;
-        ListHandler = await RgListHandler.CreateAsync(this, param);
+        SelectParam = request.SelectParam;
+        ListHandler = await RgListHandler.CreateAsync(this, request);
         if (EntityDesc.Options.ContainsKey("RGO_FilterParams"))
         {
             await GetFilterHandlerAsync();
@@ -213,11 +216,11 @@ public class RgManager : IRgManager
 
     public async Task<RgfResult<RgfPredefinedFilterResult>> SavePredefinedFilterAsync(RgfPredefinedFilter predefinedFilter)
     {
-        RgfGridRequest param = new(SessionParams)
+        RgfGridRequest request = new(SessionParams)
         {
             PredefinedFilter = predefinedFilter
         };
-        var res = await _rgfService.SavePredefinedFilterAsync(param);
+        var res = await _rgfService.SavePredefinedFilterAsync(request);
         if (!res.Success)
         {
             await NotificationManager.RaiseEventAsync(new RgfUserMessage(_recroDict, UserMessageType.Error, res.ErrorMessage), this);
@@ -225,10 +228,10 @@ public class RgManager : IRgManager
         return res.Result;
     }
 
-    public async Task<RgfResult<RgfGridResult>> GetRecroGridAsync(RgfGridRequest param)
+    public async Task<RgfResult<RgfGridResult>> GetRecroGridAsync(RgfGridRequest request)
     {
-        _logger.LogDebug("GetRecroGridAsync: {EntityName}", param.EntityName);
-        var res = await _rgfService.GetRecroGridAsync(param);
+        _logger.LogDebug("GetRecroGridAsync: {EntityName}", request.EntityName);
+        var res = await _rgfService.GetRecroGridAsync(request);
         if (!res.Success)
         {
             await NotificationManager.RaiseEventAsync(new RgfUserMessage(_recroDict, UserMessageType.Error, res.ErrorMessage), this);
@@ -251,10 +254,10 @@ public class RgManager : IRgManager
         return res.Result;
     }
 
-    public async Task<RgfResult<RgfChartDataResult>> GetChartDataAsync(RgfChartDataRequest param)
+    public async Task<RgfResult<RgfGridResult>> GetAggregateDataAsync(RgfGridRequest request)
     {
-        _logger.LogDebug("GetChartDataAsync: {EntityName}", param.GridRequest.EntityName);
-        var res = await _rgfService.GetChartDataAsync(param);
+        _logger.LogDebug("GetAggregateDataAsync: {EntityName}", request.EntityName);
+        var res = await _rgfService.GetAggregatedDataAsync(request);
         if (!res.Success)
         {
             await NotificationManager.RaiseEventAsync(new RgfUserMessage(_recroDict, UserMessageType.Error, res.ErrorMessage), this);
@@ -262,9 +265,9 @@ public class RgManager : IRgManager
         return res.Result;
     }
 
-    public async Task<RgfResult<RgfCustomFunctionResult>> CallCustomFunctionAsync(RgfGridRequest param)
+    public async Task<RgfResult<RgfCustomFunctionResult>> CallCustomFunctionAsync(RgfGridRequest request)
     {
-        var res = await _rgfService.CallCustomFunctionAsync(param);
+        var res = await _rgfService.CallCustomFunctionAsync(request);
         if (!res.Success)
         {
             await NotificationManager.RaiseEventAsync(new RgfUserMessage(_recroDict, UserMessageType.Error, res.ErrorMessage), this);
@@ -290,28 +293,28 @@ public class RgManager : IRgManager
         return res.Result;
     }
 
-    public async Task RecreateAsync()
+    public async Task RecreateAsync(RgfGridRequest? request = null)
     {
-        RgfGridRequest param = new(SessionParams)
+        request ??= new(SessionParams)
         {
             EntityName = EntityDesc.EntityName,
             SelectParam = SelectParam,
             Skeleton = true
         };
-        await InitializeAsync(param);
+        await InitializeAsync(request);
         RefreshEntity.Invoke(false);
     }
 
     public virtual async Task<RgfGridSetting?> SaveGridSettingsAsync(RgfGridSettings settings, bool recreate = false)
     {
-        RgfGridRequest param = new(SessionParams)
+        RgfGridRequest request = new(SessionParams)
         {
             GridSettings = settings
         };
         bool reset = settings.ColumnSettings.Length == 0;
         var toast = RgfToastEvent.CreateActionEvent(_recroDict.GetRgfUiString("Request"), EntityDesc.Title, _recroDict.GetRgfUiString(reset ? "ResetSettings" : "SaveSettings"));
         await ToastManager.RaiseEventAsync(toast, this);
-        var res = await _rgfService.SaveGridSettingsAsync(param);
+        var res = await _rgfService.SaveGridSettingsAsync(request);
         if (!res.Success)
         {
             await NotificationManager.RaiseEventAsync(new RgfUserMessage(_recroDict, UserMessageType.Error, res.ErrorMessage), this);
@@ -336,11 +339,11 @@ public class RgManager : IRgManager
 
     public virtual async Task<bool> DeleteGridSettingsAsync(int gridSettingsId)
     {
-        RgfGridRequest param = new(SessionParams)
+        RgfGridRequest request = new(SessionParams)
         {
             GridSettings = new RgfGridSettings() { GridSettingsId = gridSettingsId }
         };
-        var res = await _rgfService.DeleteGridSettingsAsync(param);
+        var res = await _rgfService.DeleteGridSettingsAsync(request);
         if (!res.Success)
         {
             await NotificationManager.RaiseEventAsync(new RgfUserMessage(_recroDict, UserMessageType.Error, res.ErrorMessage), this);
@@ -361,9 +364,9 @@ public class RgManager : IRgManager
 
     public IRgFormHandler CreateFormHandler() => RgFormHandler.Create(this);
 
-    public async Task<RgfResult<RgfFormResult>> GetFormAsync(RgfGridRequest param)
+    public async Task<RgfResult<RgfFormResult>> GetFormAsync(RgfGridRequest request)
     {
-        var res = await _rgfService.GetFormAsync(param);
+        var res = await _rgfService.GetFormAsync(request);
         if (!res.Success)
         {
             await NotificationManager.RaiseEventAsync(new RgfUserMessage(_recroDict, UserMessageType.Error, res.ErrorMessage), this);
@@ -371,10 +374,10 @@ public class RgManager : IRgManager
         return res.Result;
     }
 
-    public virtual async Task<RgfResult<RgfFormResult>> UpdateFormDataAsync(RgfGridRequest param)
+    public virtual async Task<RgfResult<RgfFormResult>> UpdateFormDataAsync(RgfGridRequest request)
     {
-        param.UserColumns = ListHandler.UserColumns.ToArray();
-        var res = await _rgfService.UpdateDataAsync(param);
+        request.UserColumns = ListHandler.UserColumns.ToArray();
+        var res = await _rgfService.UpdateDataAsync(request);
         if (!res.Success)
         {
             await NotificationManager.RaiseEventAsync(new RgfUserMessage(_recroDict, UserMessageType.Error, res.ErrorMessage), this);
@@ -384,11 +387,11 @@ public class RgManager : IRgManager
 
     public virtual async Task<RgfResult<RgfFormResult>> DeleteDataAsync(RgfEntityKey entityKey)
     {
-        RgfGridRequest param = new(SessionParams)
+        RgfGridRequest request = new(SessionParams)
         {
             EntityKey = entityKey
         };
-        var res = await _rgfService.DeleteDataAsync(param);
+        var res = await _rgfService.DeleteDataAsync(request);
         if (!res.Success)
         {
             await NotificationManager.RaiseEventAsync(new RgfUserMessage(_recroDict, UserMessageType.Error, res.ErrorMessage), this);

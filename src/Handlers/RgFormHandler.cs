@@ -41,7 +41,7 @@ internal class RgFormHandler : IRgFormHandler
 
     public async Task<RgfResult<RgfFormResult>> InitializeAsync(RgfEntityKey data)
     {
-        var param = new RgfGridRequest(_manager.SessionParams);
+        var param = _manager.CreateGridRequest();
         if (data?.Keys?.Any() == true)
         {
             param.EntityKey = data;
@@ -49,7 +49,7 @@ internal class RgFormHandler : IRgFormHandler
         var result = await _manager.GetFormAsync(param);
         if (result.Success || result.Messages != null)
         {
-            _manager.BroadcastMessages(result.Messages, this);
+            await _manager.BroadcastMessages(result.Messages, this);
         }
         return result;
     }
@@ -164,13 +164,14 @@ internal class RgFormHandler : IRgFormHandler
     public async Task<RgfResult<RgfFormResult>> SaveAsync(FormViewData formViewData, bool refresh = false)
     {
         _logger.LogDebug("SaveAsync");
-        RgfGridRequest param = new(_manager.SessionParams);
-        param.EntityKey = formViewData.EntityKey;
-        if (refresh)
+        var param = _manager.CreateGridRequest((request) =>
         {
-            param.Skeleton = true;
-        }
-
+            request.EntityKey = formViewData.EntityKey;
+            if (refresh)
+            {
+                request.Skeleton = true;
+            }
+        });
         bool isNewRow = param.EntityKey?.Keys.Any() != true;
         param.Data = CollectChangedFormData(formViewData);
         if (!param.Data.Any())

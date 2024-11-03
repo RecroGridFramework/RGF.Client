@@ -12,6 +12,8 @@ namespace Recrovit.RecroGridFramework.Client.Handlers;
 
 public interface IRgListHandler
 {
+    bool Initialized { get; }
+
     ObservableProperty<int> ActivePage { get; }
 
     RgfEntity EntityDesc { get; }
@@ -24,7 +26,7 @@ public interface IRgListHandler
 
     bool IsFiltered { get; }
 
-    bool IsLoading { get; }
+    ObservableProperty<bool> IsLoading { get; }
 
     ObservableProperty<int> ItemCount { get; }
 
@@ -35,6 +37,8 @@ public interface IRgListHandler
     string? QueryString { get; }
 
     int? SQLTimeout { get; }
+
+    Task<bool> InitializeAsync(RgfGridRequest param);
 
     void Dispose();
 
@@ -146,7 +150,7 @@ internal class RgListHandler : IDisposable, IRgListHandler
         _recroDict = manager.ServiceProvider.GetRequiredService<IRecroDictService>();
     }
 
-    public static Task<RgListHandler> CreateAsync(IRgManager manager, string entityName) => CreateAsync(manager, new RgfGridRequest() { EntityName = entityName });
+    public static Task<RgListHandler> CreateAsync(IRgManager manager, string entityName) => CreateAsync(manager, manager.CreateGridRequest((request) => request.EntityName = entityName));
 
     public static async Task<RgListHandler> CreateAsync(IRgManager manager, RgfGridRequest param)
     {
@@ -168,15 +172,25 @@ internal class RgListHandler : IDisposable, IRgListHandler
 
     public BasePermissions CRUD { get; private set; }
 
+    public bool Initialized { get; private set; } = false;
+
     public ObservableProperty<int> ItemCount { get; private set; } = new(-1, nameof(ItemCount));
+
     public ObservableProperty<int> PageSize { get; private set; } = new(0, nameof(PageSize));
+
     public string? QueryString { get; private set; }
+
     public int? SQLTimeout => ListParam.SQLTimeout;
+
     public ObservableProperty<int> ActivePage { get; private set; } = new(1, nameof(ActivePage));
+
     public int ItemsPerPage => (int)EntityDesc.Options.GetLongValue("RGO_ItemsPerPage", 10);
+
     public string[] DataColumns => _dataColumns.ToArray();
+
     public bool IsFiltered => ListParam.UserFilter?.Any() == true;
-    public bool IsLoading { get; set; }
+
+    public ObservableProperty<bool> IsLoading { get; private set; } = new(false, nameof(ListDataSource));
 
     public IEnumerable<int> UserColumns => EntityDesc.SortedVisibleColumns.Select(e => e.Id);
 
@@ -192,29 +206,29 @@ internal class RgListHandler : IDisposable, IRgListHandler
     {
         try
         {
-            IsLoading = true;
+            IsLoading.Value = true;
             var list = new List<RgfDynamicDictionary>();
-            if (_initialized)
+            if (Initialized)
             {
                 int page = PageSize.Value > 0 ? listParam.Skip / PageSize.Value : 0;
                 if (!TryGetCacheData(page, out list))
                 {
                     listParam.Columns = UserColumns.ToArray();
-                    var param = new RgfGridRequest(_manager.SessionParams)
+                    var param = _manager.CreateGridRequest((request) =>
                     {
-                        EntityName = EntityDesc.EntityName
-                    };
-                    if (gridSettingsId != null)
-                    {
-                        param.GridSettings = new RgfGridSettings() { GridSettingsId = gridSettingsId };
-                        param.ListParam = new RgfListParam() { Reset = true };
-                        param.Skeleton = true;
-                    }
-                    else
-                    {
-                        param.ListParam = listParam;
-                        param.ListParam.Preload = PageSize.Value;//TODO: nem kezeli a visszafelé lapozást, ezért csak 1 lapot olvasunk
-                    }
+                        request.EntityName = EntityDesc.EntityName;
+                        if (gridSettingsId != null)
+                        {
+                            request.GridSettings = new RgfGridSettings() { GridSettingsId = gridSettingsId };
+                            request.ListParam = new RgfListParam() { Reset = true };
+                            request.Skeleton = true;
+                        }
+                        else
+                        {
+                            request.ListParam = listParam;
+                            request.ListParam.Preload = PageSize.Value;// TODO: does not handle backward paging, so we only read 1 page
+                        }
+                    });
                     await LoadRecroGridAsync(param, page, gridSettingsId != null);
                     if (gridSettingsId != null)
                     {
@@ -227,7 +241,7 @@ internal class RgListHandler : IDisposable, IRgListHandler
         }
         finally
         {
-            IsLoading = false;
+            IsLoading.Value = false;
         }
     }
 
@@ -270,28 +284,32 @@ internal class RgListHandler : IDisposable, IRgListHandler
 
     public async Task<RgfResult<RgfCustomFunctionResult>> CallCustomFunctionAsync(string functionName, bool requireQueryParams = false, Dictionary<string, object>? customParams = null, RgfEntityKey? entityKey = null)
     {
-        var param = new RgfGridRequest(_manager.SessionParams, EntityDesc.EntityName)
+        var param = _manager.CreateGridRequest((request) =>
         {
-            EntityKey = entityKey,
-            FunctionName = functionName
-        };
-        if (requireQueryParams)
-        {
-            param.ListParam = ListParam;
-        }
-        if (customParams != null)
-        {
-            param.CustomParams = customParams;
-        }
-
+            request.EntityName = EntityDesc.EntityName;
+            request.EntityKey = entityKey;
+            request.FunctionName = functionName;
+            if (requireQueryParams)
+            {
+                request.ListParam = ListParam;
+            }
+            if (customParams != null)
+            {
+                request.CustomParams = customParams;
+            }
+        });
         return await _manager.CallCustomFunctionAsync(param);
     }
 
     public RgfGridRequest CreateAggregateRequest(RgfAggregationSettings aggregateParam)
     {
         var listParam = ListParam.ShallowCopy();
-        listParam.AggregateParam = aggregateParam;
-        return new RgfGridRequest(_manager.SessionParams, EntityDesc.EntityName, listParam);
+        listParam.AggregationSettings = aggregateParam;
+        return _manager.CreateGridRequest((request) =>
+        {
+            request.EntityName = EntityDesc.EntityName;
+            request.ListParam = listParam;
+        });
     }
 
     public Task PageChangingAsync(ObservablePropertyEventArgs<int> args)
@@ -537,7 +555,6 @@ internal class RgListHandler : IDisposable, IRgListHandler
     private readonly IRgManager _manager;
     private readonly IRecroDictService _recroDict;
     private RgfEntity? _entityDesc;
-    private bool _initialized = false;
 
     private DataCache _dataCache { get; set; } = new DataCache(0);
 
@@ -553,13 +570,20 @@ internal class RgListHandler : IDisposable, IRgListHandler
 
     private List<IDisposable> _disposables { get; set; } = [];
 
-    private async Task InitializeAsync(RgfGridRequest param)
+    public async Task<bool> InitializeAsync(RgfGridRequest param)
     {
-        _disposables.Add(PageSize.OnAfterChange(this, PageSizeChanging));
-        _disposables.Add(ActivePage.OnAfterChange(this, PageChangingAsync));
-
-        await LoadRecroGridAsync(param, 0, true);
-        await GetDataListAsync();
+        if (_disposables.Count == 0)
+        {
+            _disposables.Add(PageSize.OnAfterChange(this, PageSizeChanging));
+            _disposables.Add(ActivePage.OnAfterChange(this, PageChangingAsync));
+        }
+        Initialized = false;
+        bool res = await LoadRecroGridAsync(param, 0, true);
+        if (res)
+        {
+            await GetDataListAsync();
+        }
+        return res;
     }
 
     public async Task AddRowAsync(RgfDynamicDictionary rowData)
@@ -657,59 +681,69 @@ internal class RgListHandler : IDisposable, IRgListHandler
         }
     }
 
-    private async Task LoadRecroGridAsync(RgfGridRequest param, int page, bool init = false)
+    private async Task<bool> LoadRecroGridAsync(RgfGridRequest param, int page, bool init = false)
     {
         if (!init && EntityDesc.Options.GetBoolValue("RGO_ClientMode"))
         {
             await _manager.ToastManager.RaiseEventAsync(new RgfToastEvent(EntityDesc.MenuTitle, _recroDict.GetRgfUiString("InvalidOperation"), RgfToastType.Info), this);
-            return;
+            return false;
         }
-        var result = await _manager.GetRecroGridAsync(param);
-        if (result != null)
+        try
         {
-            _manager.BroadcastMessages(result.Messages, this);
-        }
-        if (result?.Success != true)
-        {
-            ItemCount.Value = 0;
-            return;
-        }
+            IsLoading.Value = true;
+            var result = await _manager.GetRecroGridAsync(param);
+            if (result != null)
+            {
+                await _manager.BroadcastMessages(result.Messages, this);
+            }
+            if (result?.Success != true)
+            {
+                ItemCount.Value = 0;
+                Initialized = false;
+                return false;
+            }
 
-        var rgResult = result.Result;
-        if (rgResult.EntityDesc != null)
-        {
-            EntityDesc = rgResult.EntityDesc;
-            ListParam.SQLTimeout = EntityDesc.Options.TryGetIntValue("RGO_SQLTimeout");
-        }
-        if (init)
-        {
-            PageSize.Value = ItemsPerPage;// Math.Min(MaxItem, ItemsPerPage);
-            ListParam.Take = PageSize.Value;
-            ListParam.Skip = 0;
-            ListParam.UserFilter = [];
-            ListParam.Sort = EntityDesc.SortColumns.Select(e => new[] { e.Id, e.Sort }).ToArray();
-            ClearCache();
-        }
-        if (rgResult.Options != null)
-        {
-            Options = rgResult.Options;
-            QuerySkip = (int)Options.GetLongValue("RGO_QuerySkip", QuerySkip);
-            ItemCount.Value = (int)Options.GetLongValue("RGO_MaxItem", ItemCount.Value);
-            QueryString = Options.GetStringValue("RGO_QueryString");
-        }
+            var rgResult = result.Result;
+            if (rgResult.EntityDesc != null)
+            {
+                EntityDesc = rgResult.EntityDesc;
+                ListParam.SQLTimeout = EntityDesc.Options.TryGetIntValue("RGO_SQLTimeout");
+            }
+            if (init)
+            {
+                PageSize.Value = ItemsPerPage;// Math.Min(MaxItem, ItemsPerPage);
+                ListParam.Take = PageSize.Value;
+                ListParam.Skip = 0;
+                ListParam.UserFilter = [];
+                ListParam.Sort = EntityDesc.SortColumns.Select(e => new[] { e.Id, e.Sort }).ToArray();
+                ClearCache();
+            }
+            if (rgResult.Options != null)
+            {
+                Options = rgResult.Options;
+                QuerySkip = (int)Options.GetLongValue("RGO_QuerySkip", QuerySkip);
+                ItemCount.Value = (int)Options.GetLongValue("RGO_MaxItem", ItemCount.Value);
+                QueryString = Options.GetStringValue("RGO_QueryString");
+            }
 
-        if (rgResult.DataColumns != null)
-        {
-            _dataColumns = rgResult.DataColumns;
-        }
-        SelectedItems = rgResult.SelectedItems;
+            if (rgResult.DataColumns != null)
+            {
+                _dataColumns = rgResult.DataColumns;
+            }
+            SelectedItems = rgResult.SelectedItems;
 
-        if (rgResult.Data != null)
-        {
-            _dataCache.AddOrReplaceMultiple(page, rgResult.Data);
-            ListParam.Count = null;
+            if (rgResult.Data != null)
+            {
+                _dataCache.AddOrReplaceMultiple(page, rgResult.Data);
+                ListParam.Count = null;
+            }
+            Initialized = true;
+            return true;
         }
-        _initialized = true;
+        finally
+        {
+            IsLoading.Value = false;
+        }
     }
 
     private bool TryGetCacheData(int page, out List<RgfDynamicDictionary> list)

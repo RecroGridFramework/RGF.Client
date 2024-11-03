@@ -121,6 +121,12 @@ public static class IRgfServiceExtension
 
     public static Task<IRgfApiResponse<RgfResult<RgfEmptyResult>>> DeleteGridSettingsAsync(this IRgfApiService service, RgfGridRequest param) => service.PostAsync<RgfResult<RgfEmptyResult>, RgfGridRequest>($"/rgf/api/entity/DeleteGridSettings", param);
 
+    public static Task<IRgfApiResponse<RgfResult<List<RgfChartSettings>>>> GetChartSettingsListAsync(this IRgfApiService service, RgfGridRequest param) => service.PostAsync<RgfResult<List<RgfChartSettings>>, RgfGridRequest>($"/rgf/api/entity/ChartSettings", param);
+
+    public static Task<IRgfApiResponse<RgfResult<RgfChartSettings>>> SaveChartSettingsAsync(this IRgfApiService service, RgfGridRequest param) => service.PostAsync<RgfResult<RgfChartSettings>, RgfGridRequest>($"/rgf/api/entity/SaveChartSettings", param);
+
+    public static Task<IRgfApiResponse<RgfResult<RgfEmptyResult>>> DeleteChartSettingsAsync(this IRgfApiService service, RgfGridRequest param) => service.PostAsync<RgfResult<RgfEmptyResult>, RgfGridRequest>($"/rgf/api/entity/DeleteChartSettings", param);
+
     public static Task<IRgfApiResponse<RgfResult<RgfPredefinedFilterResult>>> SavePredefinedFilterAsync(this IRgfApiService service, RgfGridRequest param) => service.PostAsync<RgfResult<RgfPredefinedFilterResult>, RgfGridRequest>($"/rgf/api/entity/SavePredefinedFilter", param);
 
     public static Task<IRgfApiResponse<RgfResult<RgfCustomFunctionResult>>> CallCustomFunctionAsync(this IRgfApiService service, RgfGridRequest param) => service.PostAsync<RgfResult<RgfCustomFunctionResult>, RgfGridRequest>($"/rgf/api/entity/CustomFunction", param);

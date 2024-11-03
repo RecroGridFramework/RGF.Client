@@ -50,6 +50,12 @@ public class RgfToastEvent : EventArgs
         return new RgfToastEvent(toast.Title, toast.Body, toastType, delay, status);
     }
 
+    public static RgfToastEvent RemoveToast(RgfToastEvent toast)
+    {
+        toast.Delay = -1;
+        return toast;
+    }
+
     public static string ActionTemplate(string action, string? message = null)
     {
         if (string.IsNullOrWhiteSpace(message))

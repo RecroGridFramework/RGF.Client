@@ -1,8 +1,10 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Recrovit.RecroGridFramework.Abstraction.Contracts.API;
+using Recrovit.RecroGridFramework.Abstraction.Contracts.Services;
 using Recrovit.RecroGridFramework.Abstraction.Extensions;
 using Recrovit.RecroGridFramework.Abstraction.Models;
+using Recrovit.RecroGridFramework.Client.Events;
 using Recrovit.RecroGridFramework.Client.Models;
 using System.Data;
 
@@ -25,8 +27,9 @@ internal class RgFormHandler : IRgFormHandler
 {
     public RgFormHandler(ILogger<RgFormHandler> logger, IRgManager manager)
     {
-        _manager = manager;
         _logger = logger;
+        _manager = manager;
+        _recroDict = manager.ServiceProvider.GetRequiredService<IRecroDictService>();
     }
 
     public static IRgFormHandler Create(IRgManager manager)
@@ -38,7 +41,7 @@ internal class RgFormHandler : IRgFormHandler
 
     public async Task<RgfResult<RgfFormResult>> InitializeAsync(RgfEntityKey data)
     {
-        var param = new RgfGridRequest(_manager.SessionParams);
+        var param = _manager.CreateGridRequest();
         if (data?.Keys?.Any() == true)
         {
             param.EntityKey = data;
@@ -46,15 +49,16 @@ internal class RgFormHandler : IRgFormHandler
         var result = await _manager.GetFormAsync(param);
         if (result.Success || result.Messages != null)
         {
-            _manager.BroadcastMessages(result.Messages, this);
+            await _manager.BroadcastMessages(result.Messages, this);
         }
         return result;
     }
 
-    private ILogger _logger { get; set; }
+    private readonly ILogger _logger;
 
-    private IRgManager _manager { get; }
+    private readonly IRgManager _manager;
 
+    private readonly IRecroDictService _recroDict;
 
     public bool InitFormData(RgfFormResult formResult, out FormViewData? formViewData)
     {
@@ -160,22 +164,27 @@ internal class RgFormHandler : IRgFormHandler
     public async Task<RgfResult<RgfFormResult>> SaveAsync(FormViewData formViewData, bool refresh = false)
     {
         _logger.LogDebug("SaveAsync");
-        RgfGridRequest param = new(_manager.SessionParams);
-        param.EntityKey = formViewData.EntityKey;
-        if (refresh)
+        var param = _manager.CreateGridRequest((request) =>
         {
-            param.Skeleton = true;
-        }
-
+            request.EntityKey = formViewData.EntityKey;
+            if (refresh)
+            {
+                request.Skeleton = true;
+            }
+        });
         bool isNewRow = param.EntityKey?.Keys.Any() != true;
         param.Data = CollectChangedFormData(formViewData);
         if (!param.Data.Any())
         {
             return new RgfResult<RgfFormResult>() { Success = !isNewRow };
         }
+
+        var toast = RgfToastEvent.CreateActionEvent(_recroDict.GetRgfUiString("Request"), _manager.EntityDesc.Title, _recroDict.GetRgfUiString("Save"));
+        await _manager.ToastManager.RaiseEventAsync(toast, this);
         var res = await _manager.UpdateFormDataAsync(param);
         if (res.Success && res.Result?.GridResult != null)
         {
+            await _manager.ToastManager.RaiseEventAsync(RgfToastEvent.RecreateToastWithStatus(toast, _recroDict.GetRgfUiString("Processed"), RgfToastType.Success), this);
             if (isNewRow)
             {
                 await _manager.ListHandler.AddRowAsync(new RgfDynamicDictionary(res.Result.GridResult.DataColumns, res.Result.GridResult.Data[0]));

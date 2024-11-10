@@ -12,6 +12,7 @@ public enum RgfToolbarEventKind
     Read,
     Delete,
     Select,
+    RecroChart
 }
 
 public class RgfToolbarEventArgs : EventArgs

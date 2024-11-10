@@ -65,8 +65,8 @@ internal class RgFilterHandler : IRgFilterHandler
         {
             if (_rgfFilterProperties == null)
             {
-                _rgfFilterProperties = _entity.Properties.Join(_filter.Columns, prop => prop.Alias, col => col.Alias,
-                    (prop, col) => new RgfFilterProperty(prop, col), StringComparer.OrdinalIgnoreCase)
+                _rgfFilterProperties = _entity.Properties
+                    .Join(_filter.Columns, prop => prop.Alias, col => col.Alias, (prop, col) => new RgfFilterProperty(prop, col), StringComparer.OrdinalIgnoreCase)
                     .OrderBy(e => e.ColTitle)
                     .ToArray();
             }
@@ -217,7 +217,6 @@ internal class RgFilterHandler : IRgFilterHandler
             logger.LogDebug("AddCondition: {ColTitle}", prop.ColTitle);
 
             int idx = FindCondition(Conditions, clientId, out var condition);
-            Console.WriteLine(idx);
             if (idx != -1)
             {
                 condition.Conditions.Add(newCondition);
@@ -360,7 +359,7 @@ internal class RgFilterHandler : IRgFilterHandler
             var res = await _manager.SavePredefinedFilterAsync(filter);
             if (!res.Success)
             {
-                _manager.BroadcastMessages(res.Messages, this);
+                await _manager.BroadcastMessages(res.Messages, this);
             }
             else
             {
@@ -375,9 +374,9 @@ internal class RgFilterHandler : IRgFilterHandler
                     if (string.IsNullOrEmpty(filter.Key))
                     {
                         filter.Key = res.Result.Key;
-                        //PredefinedFilters.Add(predefFilter);
+                        PredefinedFilters.Insert(0, filter);
                         //We need a new list for the ComboBox DataSource to refresh.
-                        PredefinedFilters = PredefinedFilters.Append(filter).ToList();
+                        PredefinedFilters = PredefinedFilters.ToList();
                     }
                     filter.IsGlobal = res.Result.IsGlobal;
                 }

@@ -43,7 +43,7 @@
     <BuildAssemblerVerbosity>OnlyWarningsAndErrors</BuildAssemblerVerbosity>
     <SaveComponentCacheCapacity>100</SaveComponentCacheCapacity>
     <HelpTitle>RGF.Client</HelpTitle>
-    <HelpFileVersion>8.10.0</HelpFileVersion>
+    <HelpFileVersion>8.10.1</HelpFileVersion>
     <NamingMethod>MemberName</NamingMethod>
     <ContentPlacement>AboveNamespaces</ContentPlacement>
     <RootNamespaceContainer>True</RootNamespaceContainer>
@@ -53,7 +53,7 @@
     <FooterText>&amp;lt%3ba href=&amp;quot%3b/latest/contact&amp;quot%3b target=&amp;quot%3b_blank&amp;quot%3b&amp;gt%3bContact Us&amp;lt%3b/a&amp;gt%3b</FooterText>
     <CopyrightText>Copyright \xA9 2011-2024, Recrovit Kft, All rights reserved</CopyrightText>
     <SdkLinkTarget>Blank</SdkLinkTarget>
-    <VisibleItems>InheritedMembers, InheritedFrameworkMembers, Protected, SealedProtected, ProtectedInternalAsProtected, NonBrowsable</VisibleItems>
+    <VisibleItems>InheritedMembers, InheritedFrameworkMembers, Internals, Protected, SealedProtected, ProtectedInternalAsProtected, NonBrowsable</VisibleItems>
     <MissingTags>AutoDocumentCtors, AutoDocumentDispose</MissingTags>
   </PropertyGroup>
   <!-- There are no properties for these groups.  AnyCPU needs to appear in order for Visual Studio to perform

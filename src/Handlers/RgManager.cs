@@ -355,7 +355,7 @@ public class RgManager : IRgManager
         {
             request.GridSettings = settings;
         });
-        bool reset = settings.ColumnSettings.Length == 0;
+        bool reset = settings.ColumnSettings == null || settings.ColumnSettings.Length == 0;
         var toast = RgfToastEvent.CreateActionEvent(_recroDict.GetRgfUiString("Request"), EntityDesc.Title, _recroDict.GetRgfUiString(reset ? "ResetSettings" : "SaveSettings"));
         await ToastManager.RaiseEventAsync(toast, this);
         var res = await _rgfService.SaveGridSettingsAsync(request);

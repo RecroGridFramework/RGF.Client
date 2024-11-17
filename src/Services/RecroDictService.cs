@@ -20,15 +20,12 @@ internal class RecroDictService : IRecroDictService
         var config = configuration.GetSection("Recrovit:RecroGridFramework:RecroDict");
         DefaultLanguage = (config.GetValue<string>("DefaultLanguage", "eng") ?? "eng").ToLower();
         Languages = new Dictionary<string, string>() { { DefaultLanguage, DefaultLanguage } };
-        _rgfUi = new Dictionary<string, string>();
+        _rgfUi = [];
     }
 
     public async Task InitializeAsync(string? language = null)
     {
-        if (language == null)
-        {
-            language = DefaultLanguage;
-        }
+        language ??= DefaultLanguage;
         if (!IsInitialized || language != _uiLanguage)
         {
             var dict = await GetDictionaryAsync("RGF.Language", language, false);
@@ -37,7 +34,7 @@ internal class RecroDictService : IRecroDictService
             dict = await GetDictionaryAsync("RGF.UI", language, false);
             _rgfUi = dict.ToDictionary(k => k.Key, v => v.Value);
 
-            _logger.LogInformation($"RecroDict:{language} initialized.");
+            _logger.LogInformation("RecroDict:{Language} initialized.", language);
             _uiLanguage = language;
             IsInitialized = true;
         }
@@ -49,9 +46,9 @@ internal class RecroDictService : IRecroDictService
 
     public bool IsInitialized { get; private set; }
 
-    private static ConcurrentDictionary<string, MemoryCache> _dictionaryCache { get; } = new();
+    private static ConcurrentDictionary<string, MemoryCache> DictionaryCache { get; } = new();
 
-    private Dictionary<string, string> _rgfUi { get; set; }
+    private Dictionary<string, string> _rgfUi;
 
     private string? _uiLanguage;
 
@@ -61,7 +58,7 @@ internal class RecroDictService : IRecroDictService
         {
             language = DefaultLanguage;
         }
-        var dictCache = _dictionaryCache.GetOrAdd(language, new MemoryCache(new MemoryCacheOptions()));
+        var dictCache = DictionaryCache.GetOrAdd(language, new MemoryCache(new MemoryCacheOptions()));
         var dict = await dictCache.GetOrCreateAsync(scope, async entry =>
         {
             var options = new MemoryCacheEntryOptions().SetAbsoluteExpiration(TimeSpan.FromSeconds(60));

@@ -74,17 +74,17 @@ internal class RgFormHandler : IRgFormHandler
         Dictionary<string, object?> data = new();
         foreach (var tab in form.FormTabs)
         {
-            var flexWidthTab = _manager.EntityDesc.Options?.GetIntValue($"RGO_FormFlexColumnWidth-{tab.Index}") ?? 0;
+            var flexWidthTab = _manager.EntityDesc.Options?.GetIntValue($"RGO_FormFlexColumnWidth-{tab.Index}", defaultValue: int.MaxValue) ?? int.MaxValue;
             foreach (var group in tab.Groups)
             {
-                var flexWidthGroup = _manager.EntityDesc.Options?.GetIntValue($"RGO_FormFlexColumnWidth-{tab.Index}-{group.Index}") ?? 0;
-                if (flexWidthGroup > 0)
+                var flexWidthGroup = _manager.EntityDesc.Options?.GetIntValue($"RGO_FormFlexColumnWidth-{tab.Index}-{group.Index}", defaultValue: int.MaxValue) ?? int.MaxValue;
+                if (flexWidthGroup != int.MaxValue)
                 {
                     group.FlexColumnWidth = flexWidthGroup;
                 }
                 else
                 {
-                    group.FlexColumnWidth = flexWidthTab > 0 ? flexWidthTab : flexWidthEntity;
+                    group.FlexColumnWidth = flexWidthTab != int.MaxValue ? flexWidthTab : flexWidthEntity;
                     if (group.Properties.Count == 1)
                     {
                         var prop = group.Properties.Single();
@@ -93,7 +93,7 @@ internal class RgFormHandler : IRgFormHandler
                         {
                             prop.PropertyDesc = prop.EntityDesc.Properties.SingleOrDefault(e => e.Id == prop.Id);
                         }
-                        if ((prop.PropertyDesc?.Options?.GetIntValue("RGO_FormFlexColumnWidth") ?? 0) == 0)
+                        if ((prop.PropertyDesc?.Options?.GetIntValue("RGO_FormFlexColumnWidth", defaultValue: int.MaxValue) ?? int.MaxValue) == int.MaxValue)
                         {
                             switch (prop.PropertyDesc?.FormType)
                             {
@@ -112,8 +112,8 @@ internal class RgFormHandler : IRgFormHandler
         {
             prop.EntityDesc = _manager.EntityDesc;
             prop.PropertyDesc ??= prop.EntityDesc.Properties.SingleOrDefault(e => e.Id == prop.Id);
-            var flexWidth = prop.PropertyDesc?.Options?.GetIntValue("RGO_FormFlexColumnWidth") ?? 0;
-            prop.FlexColumnWidth = flexWidth > 0 ? (int)flexWidth : null;
+            var flexWidth = prop.PropertyDesc?.Options?.GetIntValue("RGO_FormFlexColumnWidth", defaultValue: int.MaxValue) ?? int.MaxValue;
+            prop.FlexColumnWidth = flexWidth != int.MaxValue ? (int)flexWidth : null;
 
             if (prop.Alias != null)
             {

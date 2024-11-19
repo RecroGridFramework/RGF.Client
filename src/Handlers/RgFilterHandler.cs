@@ -30,6 +30,8 @@ public interface IRgFilterHandler
 
     bool ResetFilter();
 
+    Task SetFilterAsync(IEnumerable<RgfFilter.Condition>? conditions, int? sqlTimeout);
+
     RgfPredefinedFilter? SelectPredefinedFilter(string key);
 
     Task<bool> SavePredefinedFilterAsync(RgfPredefinedFilter PredefinedFilter, bool remove = false);
@@ -339,6 +341,12 @@ internal class RgFilterHandler : IRgFilterHandler
             }
         }
         return null;
+    }
+
+    public async Task SetFilterAsync(IEnumerable<RgfFilter.Condition>? conditions, int? sqlTimeout)
+    {
+        Conditions = conditions?.ToList() ?? [];
+        await _manager.ListHandler.SetFilterAsync([.. Conditions], sqlTimeout);
     }
 
     public RgfPredefinedFilter? SelectPredefinedFilter(string key)

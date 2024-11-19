@@ -421,6 +421,12 @@ public class RgManager : IRgManager
         var request = CreateGridRequest((request) =>
         {
             request.ChartSettings = settings;
+            var gs = ListHandler.GetGridSettings();
+            request.ChartSettings.ParentGridSettings = new RgfGridSettings()
+            {
+                Filter = gs.Filter,
+                SQLTimeout = gs.SQLTimeout
+            };
         });
         var toast = RgfToastEvent.CreateActionEvent(_recroDict.GetRgfUiString("Request"), EntityDesc.Title, _recroDict.GetRgfUiString("SaveSettings"));
         await ToastManager.RaiseEventAsync(toast, this);

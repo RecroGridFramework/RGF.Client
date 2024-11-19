@@ -28,7 +28,7 @@ public static class RgfClientConfigurationExtension
 
         if (string.IsNullOrEmpty(ApiService.BaseAddress))
         {
-            string msg = "The 'Recrovit:RecroGridFramework:API:BaseAddress' configuration setting is missing or invalid.";
+            const string msg = "The 'Recrovit:RecroGridFramework:API:BaseAddress' configuration setting is missing or invalid.";
             logger?.LogCritical(msg);
             throw new InvalidOperationException(msg);
         }
@@ -59,7 +59,7 @@ public static class RgfClientConfigurationExtension
             }
             var ver = Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyFileVersionAttribute>()?.Version;
             var logger = serviceProvider.GetRequiredService<ILogger<RgfClientConfiguration>>();
-            logger?.LogInformation($"RecroGrid Framework Client v{ver} initialized.");
+            logger?.LogInformation("RecroGrid Framework Client v{Version} initialized.", ver);
             RgfClientConfiguration.IsInitialized = true;
         }
     }

@@ -58,8 +58,6 @@ public interface IRgListHandler
 
     void InitFilter(RgfFilter.Condition[] conditions);
 
-    Task PageChangingAsync(ObservablePropertyEventArgs<int> args);
-
     Task RefreshDataAsync(int? gridSettingsId = null);
 
     Task RefreshRowAsync(RgfDynamicDictionary rowData);
@@ -272,9 +270,14 @@ internal class RgListHandler : IDisposable, IRgListHandler
         {
             await GetDataListAsync(gridSettingsId);
         }
-        else
+        else if (gridSettingsId == null)
         {
             ActivePage.Value = 1;
+        }
+        else
+        {
+            await ActivePage.ModifySilentlyAsync(1);
+            await PageChangingAsync(1, gridSettingsId);
         }
     }
 
@@ -308,10 +311,17 @@ internal class RgListHandler : IDisposable, IRgListHandler
         });
     }
 
-    public Task PageChangingAsync(ObservablePropertyEventArgs<int> args)
+    private Task PageChangingAsync(int page, int? gridSettingsId = null)
     {
-        ListParam.Skip = (args.NewData - 1) * PageSize.Value;
-        return GetDataListAsync();
+        if (page > 0)
+        {
+            ListParam.Skip = (page - 1) * PageSize.Value;
+        }
+        else
+        {
+            ListParam.Skip = 0;
+        }
+        return GetDataListAsync(gridSettingsId);
     }
 
     public async Task<bool> SetSortAsync(Dictionary<string, int> sort)
@@ -571,7 +581,7 @@ internal class RgListHandler : IDisposable, IRgListHandler
         if (_disposables.Count == 0)
         {
             _disposables.Add(PageSize.OnAfterChange(this, PageSizeChanging));
-            _disposables.Add(ActivePage.OnAfterChange(this, PageChangingAsync));
+            _disposables.Add(ActivePage.OnAfterChange(this, (arg) => PageChangingAsync(arg.NewData)));
         }
         Initialized = false;
         bool res = await LoadRecroGridAsync(param, 0, true);

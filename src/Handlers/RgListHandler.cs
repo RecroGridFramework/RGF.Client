@@ -30,8 +30,6 @@ public interface IRgListHandler
 
     ObservableProperty<int> ItemCount { get; }
 
-    int ItemsPerPage { get; }
-
     ObservableProperty<int> PageSize { get; }
 
     string? QueryString { get; }
@@ -183,8 +181,6 @@ internal class RgListHandler : IDisposable, IRgListHandler
     public int? SQLTimeout => ListParam.SQLTimeout;
 
     public ObservableProperty<int> ActivePage { get; private set; } = new(1, nameof(ActivePage));
-
-    public int ItemsPerPage => (int)EntityDesc.Options.GetLongValue("RGO_ItemsPerPage", 10);
 
     public string[] DataColumns => _dataColumns.ToArray();
 
@@ -711,7 +707,7 @@ internal class RgListHandler : IDisposable, IRgListHandler
             }
             if (init)
             {
-                PageSize.Value = ItemsPerPage;// Math.Min(MaxItem, ItemsPerPage);
+                PageSize.Value = EntityDesc.ItemsPerPage;// Math.Min(MaxItem, ItemsPerPage);
                 ListParam.Take = PageSize.Value;
                 ListParam.Skip = 0;
                 ListParam.UserFilter = [];

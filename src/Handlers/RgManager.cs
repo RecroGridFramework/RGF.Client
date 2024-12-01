@@ -26,7 +26,7 @@ public interface IRgManager : IDisposable
 
     RgfEntity EntityDesc { get; }
 
-    ObservableProperty<List<RgfDynamicDictionary>> SelectedItems { get; }
+    ObservableProperty<Dictionary<int, RgfEntityKey>> SelectedItems { get; }
 
     ObservableProperty<FormViewKey?> FormViewKey { get; }
 
@@ -132,7 +132,9 @@ public class RgManager : IRgManager
         {
             if (ListHandler.ItemCount.Value == 1)
             {
-                SelectedItems.Value = await ListHandler.GetDataListAsync();
+                var data = await ListHandler.GetDataListAsync();
+                var rowIndexAndKey = ListHandler.GetRowIndexAndKey(data[0]);
+                SelectedItems.Value = new Dictionary<int, RgfEntityKey> { { rowIndexAndKey.Key, rowIndexAndKey.Value } };
                 await OnToolbarCommandAsync(new RgfEventArgs<RgfToolbarEventArgs>(this, new(RgfToolbarEventKind.Read)));
             }
             else
@@ -163,7 +165,7 @@ public class RgManager : IRgManager
     public RgfEntity EntityDesc => ListHandler.EntityDesc;
 
 
-    public ObservableProperty<List<RgfDynamicDictionary>> SelectedItems { get; private set; } = new(new(), nameof(SelectedItems));
+    public ObservableProperty<Dictionary<int, RgfEntityKey>> SelectedItems { get; private set; } = new(new(), nameof(SelectedItems));
 
     public ObservableProperty<FormViewKey?> FormViewKey { get; private set; } = new(new(), nameof(FormViewKey));
 
@@ -569,23 +571,23 @@ public class RgManager : IRgManager
 
             case RgfToolbarEventKind.Edit:
             case RgfToolbarEventKind.Read:
-                if ((ListHandler.CRUD.Read || ListHandler.CRUD.Edit) && EntityDesc.Options.GetBoolValue("RGO_NoDetails") != true)
+                if (SelectedItems.Value.Count == 1 && (ListHandler.CRUD.Read || ListHandler.CRUD.Edit) && EntityDesc.Options.GetBoolValue("RGO_NoDetails") != true)
                 {
                     var data = SelectedItems.Value.SingleOrDefault();
-                    if (data != null && ListHandler.GetEntityKey(data, out var entityKey))
+                    if (data.Value?.IsEmpty == false)
                     {
-                        FormViewKey.Value = new(entityKey!, ListHandler.GetAbsoluteRowIndex(data));
+                        FormViewKey.Value = new(data.Value, data.Key);
                     }
                 }
                 break;
 
             case RgfToolbarEventKind.Delete:
-                if (ListHandler.CRUD.Delete)
+                if (SelectedItems.Value.Count == 1 && ListHandler.CRUD.Delete)
                 {
                     var data = SelectedItems.Value.SingleOrDefault();
-                    if (data != null && ListHandler.GetEntityKey(data, out var entityKey) && entityKey != null)
+                    if (data.Value?.IsEmpty == false)
                     {
-                        await DeleteDataAsync(entityKey);
+                        await DeleteDataAsync(data.Value);
                     }
                 }
                 break;
@@ -601,18 +603,22 @@ public class RgManager : IRgManager
         if (SelectParam != null && SelectedItems.Value.Count == 1)
         {
             var data = SelectedItems.Value.Single();
-            if (ListHandler.GetEntityKey(data, out var entityKey) && entityKey != null)
+            if (data.Value?.IsEmpty == false)
             {
-                _logger.LogDebug("OnSelect: {key}", entityKey.Keys.FirstOrDefault().Value);
-                SelectParam.SelectedKey = entityKey;
+                _logger.LogDebug("OnSelect: {key}", data.Value.Keys.FirstOrDefault().Value);
+                SelectParam.SelectedKey = data.Value;
             }
             if (SelectParam.Filter.Keys.Any())
             {
-                var parClientName = SelectParam.Filter.Keys.First().Key;
-                var prop = EntityDesc.Properties.FirstOrDefault(e => e.Options?.Any(o => o.Key.Equals("ParClientName") && o.Value.ToString() == parClientName) == true);
-                if (prop != null)
+                var rowData = ListHandler.GetRowData(data.Key);
+                if (rowData != null)
                 {
-                    SelectParam.Filter.Keys[parClientName] = data.GetMember(prop.Alias);
+                    var parClientName = SelectParam.Filter.Keys.First().Key;
+                    var prop = EntityDesc.Properties.FirstOrDefault(e => e.Options?.Any(o => o.Key.Equals("ParClientName") && o.Value.ToString() == parClientName) == true);
+                    if (prop != null)
+                    {
+                        SelectParam.Filter.Keys[parClientName] = rowData.GetMember(prop.Alias);
+                    }
                 }
             }
             SelectParam.ItemSelectedEvent.InvokeAsync(new CancelEventArgs());

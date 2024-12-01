@@ -50,12 +50,6 @@ public interface IRgListHandler
 
     RgfDynamicDictionary GetEKey(RgfDynamicDictionary rowData);
 
-    bool GetEntityKey(RgfDynamicDictionary rowData, out RgfEntityKey? entityKey);
-
-    int GetAbsoluteRowIndex(RgfDynamicDictionary rowData);
-
-    int GetRelativeRowIndex(RgfDynamicDictionary rowData);
-
     void InitFilter(RgfFilter.Condition[] conditions);
 
     Task RefreshDataAsync(int? gridSettingsId = null);
@@ -85,6 +79,66 @@ public interface IRgListHandler
     Task<RgfDynamicDictionary?> EnsureVisibleAsync(int index);
 
     RgfDynamicDictionary? GetRowData(int index);
+}
+
+public static class IRgListHandlerExtensions
+{
+    public static bool GetEntityKey(this IRgListHandler handler, RgfDynamicDictionary rowData, out RgfEntityKey? entityKey)
+    {
+        var rgparams = rowData.Get<Dictionary<string, object>>("__rgparams");
+        if (rgparams?.TryGetValue("keySign", out var k) == true)
+        {
+            entityKey = new RgfEntityKey() { Keys = handler.GetEKey(rowData), Signature = k.ToString() };
+            return true;
+        }
+        entityKey = null;
+        return false;
+    }
+
+    public static int ToRelativeRowIndex(this IRgListHandler handler, int absoluteIndex)
+    {
+        if (absoluteIndex >= 0)
+        {
+            absoluteIndex -= (handler.ActivePage.Value - 1) * handler.PageSize.Value;
+        }
+        return absoluteIndex;
+    }
+
+    public static int ToAbsoluteRowIndex(this IRgListHandler handler, int relativeIndex)
+    {
+        if (relativeIndex >= 0)
+        {
+            relativeIndex += (handler.ActivePage.Value - 1) * handler.PageSize.Value;
+        }
+        return relativeIndex;
+    }
+
+    public static int GetAbsoluteRowIndex(this IRgListHandler handler, RgfDynamicDictionary rowData)
+    {
+        int idx = -1;
+        if (rowData != null)
+        {
+            var rgparams = rowData.Get<Dictionary<string, object>>("__rgparams");
+            if (rgparams?.TryGetValue("rowIndex", out var rowIndex) == true)
+            {
+                int.TryParse(rowIndex.ToString(), out idx);
+            }
+        }
+        return idx;
+    }
+
+    public static int GetRelativeRowIndex(this IRgListHandler handler, RgfDynamicDictionary rowData)
+    {
+        int idx = handler.GetAbsoluteRowIndex(rowData);
+        return handler.ToRelativeRowIndex(idx);
+    }
+
+    public static KeyValuePair<int, RgfEntityKey> GetRowIndexAndKey(this IRgListHandler handler, RgfDynamicDictionary rowData)
+    {
+        int idx = handler.GetAbsoluteRowIndex(rowData);
+        handler.GetEntityKey(rowData, out var entityKey);
+        return new KeyValuePair<int, RgfEntityKey>(idx, entityKey ?? new());
+    }
 }
 
 internal class RgListHandler : IDisposable, IRgListHandler
@@ -192,11 +246,12 @@ internal class RgListHandler : IDisposable, IRgListHandler
 
     public async Task<List<RgfDynamicDictionary>> GetDataListAsync(int? gridSettingsId = null)
     {
-        var list = await _getDataListAsync(ListParam, gridSettingsId);
+        var list = await GetDataListAsync(ListParam, gridSettingsId);
         await ListDataSource.SetValueAsync(list);
         return list;
     }
-    private async Task<List<RgfDynamicDictionary>> _getDataListAsync(RgfListParam listParam, int? gridSettingsId = null)
+
+    private async Task<List<RgfDynamicDictionary>> GetDataListAsync(RgfListParam listParam, int? gridSettingsId = null)
     {
         try
         {
@@ -252,7 +307,7 @@ internal class RgListHandler : IDisposable, IRgListHandler
         for (int i = startPage; i <= endPage; i++)
         {
             listParam.Skip = i * PageSize.Value;
-            var data = await _getDataListAsync(listParam);
+            var data = await GetDataListAsync(listParam);
 
             int pageStartIdx = (i == startPage) ? startIndex % PageSize.Value : 0;
             int pageEndIdx = (i == endPage) ? (endIndex % PageSize.Value) + 1 : PageSize.Value;
@@ -484,54 +539,18 @@ internal class RgListHandler : IDisposable, IRgListHandler
         return ekey;
     }
 
-    public bool GetEntityKey(RgfDynamicDictionary rowData, out RgfEntityKey? entityKey)
+    public async Task<RgfDynamicDictionary?> EnsureVisibleAsync(int absoluteIndex)
     {
-        var rgparams = rowData.Get<Dictionary<string, object>>("__rgparams");
-        if (rgparams?.TryGetValue("keySign", out var k) == true)
-        {
-            entityKey = new RgfEntityKey() { Keys = GetEKey(rowData), Signature = k.ToString() };
-            return true;
-        }
-        entityKey = null;
-        return false;
-    }
-
-    public int GetAbsoluteRowIndex(RgfDynamicDictionary rowData)
-    {
-        int idx = -1;
-        if (rowData != null)
-        {
-            var rgparams = rowData.Get<Dictionary<string, object>>("__rgparams");
-            if (rgparams?.TryGetValue("rowIndex", out var rowIndex) == true)
-            {
-                int.TryParse(rowIndex.ToString(), out idx);
-            }
-        }
-        return idx;
-    }
-
-    public int GetRelativeRowIndex(RgfDynamicDictionary rowData)
-    {
-        int idx = GetAbsoluteRowIndex(rowData);
-        if (idx != -1)
-        {
-            idx -= (ActivePage.Value - 1) * PageSize.Value;
-        }
-        return idx;
-    }
-
-    public async Task<RgfDynamicDictionary?> EnsureVisibleAsync(int index)
-    {
-        int idx = index >= 0 && index < ItemCount.Value ? index : throw new ArgumentOutOfRangeException(nameof(index));
+        int idx = absoluteIndex >= 0 && absoluteIndex < ItemCount.Value ? absoluteIndex : throw new ArgumentOutOfRangeException(nameof(absoluteIndex));
         int first = (ActivePage.Value - 1) * PageSize.Value;
         if (idx < first || idx >= first + PageSize.Value)
         {
-            _logger.LogDebug("EnsureVisibleAsync: {index}", index);
+            _logger.LogDebug("EnsureVisible: {index}", absoluteIndex);
             int page = idx / PageSize.Value + 1;
             await ActivePage.SetValueAsync(page);
             first = (ActivePage.Value - 1) * PageSize.Value;
         }
-        return ListDataSource.Value[index - first];
+        return ListDataSource.Value[absoluteIndex - first];
     }
 
     public RgfDynamicDictionary? GetRowData(int index)
@@ -658,8 +677,7 @@ internal class RgListHandler : IDisposable, IRgListHandler
 
     public async Task DeleteRowAsync(RgfEntityKey entityKey)
     {
-        RgfDynamicDictionary key = entityKey.Keys;
-        if (key.Count == 0)
+        if (entityKey.IsEmpty)
         {
             return;
         }
@@ -672,7 +690,7 @@ internal class RgListHandler : IDisposable, IRgListHandler
             {
                 var row2 = RgfDynamicDictionary.Create(logger, EntityDesc, _dataColumns, pageData[index], true);
                 var ekey2 = GetEKey(row2);
-                if (key.Equals(ekey2))
+                if (entityKey.Keys.Equals(ekey2))
                 {
                     _dataCache.RemovePages(page, int.MaxValue);
                     ItemCount.Value--;
@@ -785,6 +803,7 @@ internal class RgListHandler : IDisposable, IRgListHandler
     {
         _dataCache = new DataCache(PageSize.Value);
         ListParam.Count = true;
+        _manager.SelectedItems.Value = new();
     }
 
     public void Dispose()

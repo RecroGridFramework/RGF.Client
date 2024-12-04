@@ -1,9 +1,4 @@
 ﻿using Recrovit.RecroGridFramework.Abstraction.Contracts.Services;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Recrovit.RecroGridFramework.Client.Events;
 
@@ -33,7 +28,7 @@ public class RgfUserMessage : EventArgs
 
     public RgfUserMessage(IRecroDictService recroDict, UserMessageType category, string message, UserMessageOrigin origin = UserMessageOrigin.Global) : this(category, message, category.ToString(), origin)
     {
-        Title = $"{recroDict.GetRgfUiString(category.ToString())}!";
+        Title = recroDict.GetRgfUiString(category.ToString());
     }
 
     public UserMessageType Category { get; set; }

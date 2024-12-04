@@ -82,6 +82,8 @@ public interface IRgManager : IDisposable
 
     Task<RgfResult<RgfFormResult>> DeleteDataAsync(RgfEntityKey entityKey);
 
+    Task<int> DeleteSelectedItemsAsync();
+
     Task BroadcastMessages(RgfCoreMessages messages, object sender);
 
     Task OnToolbarCommandAsync(IRgfEventArgs<RgfToolbarEventArgs> arg);
@@ -89,6 +91,11 @@ public interface IRgManager : IDisposable
     event Action<bool> RefreshEntity;
 
     Task<string> AboutAsync();
+}
+
+public static class IRgManagerExtensions
+{
+    public static List<RgfDynamicDictionary> GetSelectedRowsData(this IRgManager manager) => manager.ListHandler.GetSelectedRowsData(manager.SelectedItems.Value);
 }
 
 public class RgManager : IRgManager
@@ -105,7 +112,7 @@ public class RgManager : IRgManager
         ToastManager = serviceProvider.GetRequiredService<IRgfEventNotificationService>().GetNotificationManager(RgfToastEvent.NotificationManagerScope);
     }
 
-    public async Task<bool> InitializeAsync(RgfGridRequest request, bool formOnly = false)
+    public async Task<bool> InitializeAsync(RgfGridRequest request)
     {
         _filterHandler = null;
         SelectParam = request.SelectParam;
@@ -127,21 +134,6 @@ public class RgManager : IRgManager
         if (EntityDesc.Options.ContainsKey("RGO_FilterParams"))
         {
             await GetFilterHandlerAsync();
-        }
-        if (formOnly)
-        {
-            if (ListHandler.ItemCount.Value == 1)
-            {
-                var data = await ListHandler.GetDataListAsync();
-                var rowIndexAndKey = ListHandler.GetRowIndexAndKey(data[0]);
-                SelectedItems.Value = new Dictionary<int, RgfEntityKey> { { rowIndexAndKey.Key, rowIndexAndKey.Value } };
-                await OnToolbarCommandAsync(new RgfEventArgs<RgfToolbarEventArgs>(this, new(RgfToolbarEventKind.Read)));
-            }
-            else
-            {
-                _logger.LogError("formOnly => ItemCount={ItemCount}", ListHandler.ItemCount.Value);
-                return false;
-            }
         }
         return true;
     }
@@ -522,6 +514,39 @@ public class RgManager : IRgManager
         return res.Result;
     }
 
+    public virtual async Task<int> DeleteSelectedItemsAsync()
+    {
+        var entityKeys = SelectedItems.Value.Values.ToArray();
+        int count = 0;
+        foreach (var key in entityKeys)
+        {
+            var res = await DeleteDataAsync(key);
+            if (!res.Success)
+            {
+                break;
+            }
+            count++;
+        }
+        if (count > 0)
+        {
+            if (count == entityKeys.Count())
+            {
+                var msg = string.Format(_recroDict.GetRgfUiString("DelSuccess"), count);
+                var toast = RgfToastEvent.CreateActionEvent(_recroDict.GetRgfUiString("Delete"), EntityDesc.Title, msg, RgfToastType.Success);
+                await ToastManager.RaiseEventAsync(toast, this);
+            }
+            else
+            {
+                var messages = new RgfCoreMessages();
+                var msg = string.Format(_recroDict.GetRgfUiString("DelIncomplete"), count, entityKeys.Count() - count);
+                messages.Error = new() { { "BulkDelete", msg } };
+                await BroadcastMessages(messages, this);
+            }
+            await ListHandler.RefreshDataAsync();
+        }
+        return count;
+    }
+
     #endregion
 
     public async Task BroadcastMessages(RgfCoreMessages messages, object sender)
@@ -582,12 +607,11 @@ public class RgManager : IRgManager
                 break;
 
             case RgfToolbarEventKind.Delete:
-                if (SelectedItems.Value.Count == 1 && ListHandler.CRUD.Delete)
+                if (ListHandler.CRUD.Delete && arg.Args.Data != null)
                 {
-                    var data = SelectedItems.Value.SingleOrDefault();
-                    if (data.Value?.IsEmpty == false)
+                    if (ListHandler.GetEntityKey(arg.Args.Data, out var key) && key?.IsEmpty == false)
                     {
-                        await DeleteDataAsync(data.Value);
+                        await DeleteDataAsync(key);
                     }
                 }
                 break;
@@ -606,7 +630,7 @@ public class RgManager : IRgManager
             if (data.Value?.IsEmpty == false)
             {
                 _logger.LogDebug("OnSelect: {key}", data.Value.Keys.FirstOrDefault().Value);
-                SelectParam.SelectedKey = data.Value;
+                SelectParam.SelectedKeys = [data.Value];
             }
             if (SelectParam.Filter.Keys.Any())
             {

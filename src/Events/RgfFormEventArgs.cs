@@ -11,6 +11,7 @@ public enum RgfFormEventKind
     AfterRender,
     ValidationRequested,
     FindEntity,
+    ShowRelatedEntity,
     ParametersSet
 }
 

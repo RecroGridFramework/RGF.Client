@@ -76,9 +76,9 @@ public interface IRgListHandler
 
     RgfGridSettings GetGridSettings();
 
-    Task<RgfDynamicDictionary?> EnsureVisibleAsync(int index);
+    Task<RgfDynamicDictionary?> EnsureVisibleAsync(int absoluteRowIndex);
 
-    RgfDynamicDictionary? GetRowData(int index);
+    RgfDynamicDictionary? GetRowData(int absoluteRowIndex);
 }
 
 public static class IRgListHandlerExtensions
@@ -95,22 +95,26 @@ public static class IRgListHandlerExtensions
         return false;
     }
 
-    public static int ToRelativeRowIndex(this IRgListHandler handler, int absoluteIndex)
+    public static int ToRelativeRowIndex(this IRgListHandler handler, int absoluteRowIndex)
     {
-        if (absoluteIndex >= 0)
+        if (absoluteRowIndex >= 0)
         {
-            absoluteIndex -= (handler.ActivePage.Value - 1) * handler.PageSize.Value;
+            int relativeRowIndex = absoluteRowIndex - (handler.ActivePage.Value - 1) * handler.PageSize.Value;
+            if (relativeRowIndex >= 0 && relativeRowIndex < handler.PageSize.Value)
+            {
+                return relativeRowIndex;
+            }
         }
-        return absoluteIndex;
+        return -1;
     }
 
-    public static int ToAbsoluteRowIndex(this IRgListHandler handler, int relativeIndex)
+    public static int ToAbsoluteRowIndex(this IRgListHandler handler, int relativeRowIndex)
     {
-        if (relativeIndex >= 0)
+        if (relativeRowIndex >= 0)
         {
-            relativeIndex += (handler.ActivePage.Value - 1) * handler.PageSize.Value;
+            relativeRowIndex += (handler.ActivePage.Value - 1) * handler.PageSize.Value;
         }
-        return relativeIndex;
+        return relativeRowIndex;
     }
 
     public static int GetAbsoluteRowIndex(this IRgListHandler handler, RgfDynamicDictionary rowData)
@@ -138,6 +142,20 @@ public static class IRgListHandlerExtensions
         int idx = handler.GetAbsoluteRowIndex(rowData);
         handler.GetEntityKey(rowData, out var entityKey);
         return new KeyValuePair<int, RgfEntityKey>(idx, entityKey ?? new());
+    }
+
+    public static List<RgfDynamicDictionary> GetSelectedRowsData(this IRgListHandler handler, Dictionary<int, RgfEntityKey> selectedItems)
+    {
+        var list = new List<RgfDynamicDictionary>();
+        foreach (var item in selectedItems)
+        {
+            var rowData = handler.GetRowData(item.Key);
+            if (rowData != null)
+            {
+                list.Add(rowData);
+            }
+        }
+        return list;
     }
 }
 
@@ -343,6 +361,10 @@ internal class RgListHandler : IDisposable, IRgListHandler
             request.EntityName = EntityDesc.EntityName;
             request.EntityKey = entityKey;
             request.FunctionName = functionName;
+            if (entityKey == null && _manager.SelectedItems.Value.Count > 0)
+            {
+                request.SelectParam = new() { SelectedKeys = _manager.SelectedItems.Value.Values.ToArray() };
+            }
             if (requireQueryParams)
             {
                 request.ListParam = ListParam;
@@ -539,26 +561,37 @@ internal class RgListHandler : IDisposable, IRgListHandler
         return ekey;
     }
 
-    public async Task<RgfDynamicDictionary?> EnsureVisibleAsync(int absoluteIndex)
+    public async Task<RgfDynamicDictionary?> EnsureVisibleAsync(int absoluteRowIndex)
     {
-        int idx = absoluteIndex >= 0 && absoluteIndex < ItemCount.Value ? absoluteIndex : throw new ArgumentOutOfRangeException(nameof(absoluteIndex));
+        int idx = absoluteRowIndex >= 0 && absoluteRowIndex < ItemCount.Value ? absoluteRowIndex : throw new ArgumentOutOfRangeException(nameof(absoluteRowIndex));
         int first = (ActivePage.Value - 1) * PageSize.Value;
         if (idx < first || idx >= first + PageSize.Value)
         {
-            _logger.LogDebug("EnsureVisible: {index}", absoluteIndex);
+            _logger.LogDebug("EnsureVisible: {index}", absoluteRowIndex);
             int page = idx / PageSize.Value + 1;
             await ActivePage.SetValueAsync(page);
             first = (ActivePage.Value - 1) * PageSize.Value;
         }
-        return ListDataSource.Value[absoluteIndex - first];
+        return ListDataSource.Value[absoluteRowIndex - first];
     }
 
-    public RgfDynamicDictionary? GetRowData(int index)
+    public RgfDynamicDictionary? GetRowData(int absoluteRowIndex)
     {
         int first = (ActivePage.Value - 1) * PageSize.Value;
-        if (index >= first && index < first + PageSize.Value)
+        if (absoluteRowIndex >= first && absoluteRowIndex < first + PageSize.Value)
         {
-            return ListDataSource.Value[index - first];
+            return ListDataSource.Value[absoluteRowIndex - first];
+        }
+        else
+        {
+            int page = absoluteRowIndex / PageSize.Value;
+            if (_dataCache.TryGetData(page, out var pageData) && pageData != null)
+            {
+                var logger = _manager.ServiceProvider.GetRequiredService<ILogger<RgfDynamicDictionary>>();
+                var index = absoluteRowIndex % PageSize.Value;
+                var rowData = RgfDynamicDictionary.Create(logger, EntityDesc, _dataColumns, pageData[index], true);
+                return rowData;
+            }
         }
         return null;
     }

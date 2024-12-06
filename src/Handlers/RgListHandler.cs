@@ -337,7 +337,7 @@ internal class RgListHandler : IDisposable, IRgListHandler
 
     public async Task RefreshDataAsync(int? gridSettingsId = null)
     {
-        await _manager.ToastManager.RaiseEventAsync(new RgfToastEvent(EntityDesc.MenuTitle, _recroDict.GetRgfUiString("Refresh"), delay: 2000), this);
+        await _manager.ToastManager.RaiseEventAsync(new RgfToastEventArgs(EntityDesc.MenuTitle, _recroDict.GetRgfUiString("Refresh"), delay: 2000), this);
         ClearCache();
         if (ActivePage.Value == 1)
         {
@@ -742,7 +742,7 @@ internal class RgListHandler : IDisposable, IRgListHandler
     {
         if (!init && EntityDesc.Options.GetBoolValue("RGO_ClientMode"))
         {
-            await _manager.ToastManager.RaiseEventAsync(new RgfToastEvent(EntityDesc.MenuTitle, _recroDict.GetRgfUiString("InvalidOperation"), RgfToastType.Info), this);
+            await _manager.ToastManager.RaiseEventAsync(new RgfToastEventArgs(EntityDesc.MenuTitle, _recroDict.GetRgfUiString("InvalidOperation"), RgfToastType.Info), this);
             return false;
         }
         try

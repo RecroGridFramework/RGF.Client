@@ -9,9 +9,9 @@ public enum RgfToastType
     Success = 4
 }
 
-public class RgfToastEvent : EventArgs
+public class RgfToastEventArgs : EventArgs
 {
-    public RgfToastEvent(string title, string body, RgfToastType toastType = RgfToastType.Default, int? delay = null, string? status = null)
+    public RgfToastEventArgs(string title, string body, RgfToastType toastType = RgfToastType.Default, int? delay = null, string? status = null)
     {
         this.Title = title;
         this.Status = status;
@@ -38,19 +38,19 @@ public class RgfToastEvent : EventArgs
 
     public DateTime TriggeredAt { get; init; }
 
-    public static RgfToastEvent CreateActionEvent(string status, string title, string action, RgfToastType toastType = RgfToastType.Default, int? delay = null)
-       => new RgfToastEvent(title, ActionTemplate(action), toastType, delay, status);
+    public static RgfToastEventArgs CreateActionEvent(string status, string title, string action, RgfToastType toastType = RgfToastType.Default, int? delay = null)
+       => new RgfToastEventArgs(title, ActionTemplate(action), toastType, delay, status);
 
-    public static RgfToastEvent CreateActionEvent(string status, string title, string action, string message, RgfToastType toastType = RgfToastType.Default, int? delay = null)
-       => new RgfToastEvent(title, ActionTemplate(action, message), toastType, delay, status);
+    public static RgfToastEventArgs CreateActionEvent(string status, string title, string action, string message, RgfToastType toastType = RgfToastType.Default, int? delay = null)
+       => new RgfToastEventArgs(title, ActionTemplate(action, message), toastType, delay, status);
 
-    public static RgfToastEvent RecreateToastWithStatus(RgfToastEvent toast, string status, RgfToastType toastType = RgfToastType.Default, int? delay = null)
+    public static RgfToastEventArgs RecreateToastWithStatus(RgfToastEventArgs toast, string status, RgfToastType toastType = RgfToastType.Default, int? delay = null)
     {
         toast.Delay = -1;
-        return new RgfToastEvent(toast.Title, toast.Body, toastType, delay, status);
+        return new RgfToastEventArgs(toast.Title, toast.Body, toastType, delay, status);
     }
 
-    public static RgfToastEvent RemoveToast(RgfToastEvent toast)
+    public static RgfToastEventArgs RemoveToast(RgfToastEventArgs toast)
     {
         toast.Delay = -1;
         return toast;

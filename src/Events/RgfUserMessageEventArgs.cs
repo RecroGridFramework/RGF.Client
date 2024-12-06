@@ -16,9 +16,9 @@ public enum UserMessageOrigin
     FormView = 2,
 }
 
-public class RgfUserMessage : EventArgs
+public class RgfUserMessageEventArgs : EventArgs
 {
-    public RgfUserMessage(UserMessageType category, string message, string title, UserMessageOrigin origin = UserMessageOrigin.Global)
+    public RgfUserMessageEventArgs(UserMessageType category, string message, string title, UserMessageOrigin origin = UserMessageOrigin.Global)
     {
         Category = category;
         Message = message;
@@ -26,7 +26,7 @@ public class RgfUserMessage : EventArgs
         Origin = origin;
     }
 
-    public RgfUserMessage(IRecroDictService recroDict, UserMessageType category, string message, UserMessageOrigin origin = UserMessageOrigin.Global) : this(category, message, category.ToString(), origin)
+    public RgfUserMessageEventArgs(IRecroDictService recroDict, UserMessageType category, string message, UserMessageOrigin origin = UserMessageOrigin.Global) : this(category, message, category.ToString(), origin)
     {
         Title = recroDict.GetRgfUiString(category.ToString());
     }

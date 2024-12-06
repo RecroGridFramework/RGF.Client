@@ -4,8 +4,8 @@ namespace Recrovit.RecroGridFramework.Client.Events;
 
 public enum RgfEntityEventKind
 {
-    Initialized,
-    Destroy
+    Initialized = 1,
+    Destroy = 2
 }
 
 public class RgfEntityEventArgs : EventArgs

@@ -4,16 +4,16 @@ namespace Recrovit.RecroGridFramework.Client.Events;
 
 public enum UserMessageType
 {
-    Information,
-    Warning,
-    Error,
-    None,
+    None = 0,
+    Information = 1,
+    Warning = 2,
+    Error = 3,
 }
 
 public enum UserMessageOrigin
 {
-    Global,
-    FormView,
+    Global = 1,
+    FormView = 2,
 }
 
 public class RgfUserMessage : EventArgs

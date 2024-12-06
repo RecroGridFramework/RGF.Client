@@ -4,15 +4,15 @@ namespace Recrovit.RecroGridFramework.Client.Events;
 
 public enum RgfToolbarEventKind
 {
-    Invalid,
-    Refresh,
-    ShowFilter,
-    Add,
-    Edit,
-    Read,
-    Delete,
-    Select,
-    RecroChart
+    Invalid = 0,
+    Refresh = 1,
+    ShowFilter = 2,
+    Add = 3,
+    Edit = 4,
+    Read = 5,
+    Delete = 6,
+    Select = 7,
+    RecroChart = 8
 }
 
 public class RgfToolbarEventArgs : EventArgs

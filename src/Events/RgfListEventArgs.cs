@@ -5,9 +5,9 @@ namespace Recrovit.RecroGridFramework.Client.Events;
 
 public enum RgfListEventKind
 {
-    CreateRowData,
-    ColumnSettingsChanged,
-    AfterRender
+    CreateRowData = 1,
+    ColumnSettingsChanged = 2,
+    AfterRender = 3
 }
 
 public class RgfListEventArgs : EventArgs

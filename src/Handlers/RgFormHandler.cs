@@ -179,12 +179,12 @@ internal class RgFormHandler : IRgFormHandler
             return new RgfResult<RgfFormResult>() { Success = !isNewRow };
         }
 
-        var toast = RgfToastEvent.CreateActionEvent(_recroDict.GetRgfUiString("Request"), _manager.EntityDesc.Title, _recroDict.GetRgfUiString("Save"));
+        var toast = RgfToastEventArgs.CreateActionEvent(_recroDict.GetRgfUiString("Request"), _manager.EntityDesc.Title, _recroDict.GetRgfUiString("Save"));
         await _manager.ToastManager.RaiseEventAsync(toast, this);
         var res = await _manager.UpdateFormDataAsync(param);
         if (res.Success && res.Result?.GridResult != null)
         {
-            await _manager.ToastManager.RaiseEventAsync(RgfToastEvent.RecreateToastWithStatus(toast, _recroDict.GetRgfUiString("Processed"), RgfToastType.Success), this);
+            await _manager.ToastManager.RaiseEventAsync(RgfToastEventArgs.RecreateToastWithStatus(toast, _recroDict.GetRgfUiString("Processed"), RgfToastType.Success), this);
             if (isNewRow)
             {
                 await _manager.ListHandler.AddRowAsync(new RgfDynamicDictionary(res.Result.GridResult.DataColumns, res.Result.GridResult.Data[0]));

@@ -2,7 +2,7 @@
 
 public enum RgfChartEventKind
 {
-    ShowChart
+    ShowChart = 1
 }
 
 public class RgfChartEventArgs : EventArgs

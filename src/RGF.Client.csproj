@@ -25,7 +25,8 @@
     <Description>RecroGrid Framework Client Abstraction</Description>
     <PackageTags>RecroGrid Framework</PackageTags>
     <RepositoryUrl>https://github.com/RecroGridFramework/RGF.Client.git</RepositoryUrl>
-    <PackageLicenseExpression>GPL-3.0-only</PackageLicenseExpression>
+    <PackageLicenseExpression>LGPL-3.0-only</PackageLicenseExpression>
+    <PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
     <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
 

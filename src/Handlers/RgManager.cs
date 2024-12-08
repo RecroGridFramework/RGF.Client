@@ -141,10 +141,6 @@ public class RgManager : IRgManager
 
     public IServiceProvider ServiceProvider { get; }
 
-    private IRecroDictService _recroDict { get; }
-
-    public IRecroSecService _recroSec { get; }
-
     public IRgfNotificationManager NotificationManager { get; }
 
     public IRgfNotificationManager ToastManager { get; }
@@ -176,9 +172,13 @@ public class RgManager : IRgManager
 
     public event Action<bool> RefreshEntity = default!;
 
-    private IRgfApiService _rgfService { get; }
+    private IRgfApiService _rgfService;
 
-    private ILogger<RgManager> _logger { get; }
+    private ILogger<RgManager> _logger;
+
+    private IRecroDictService _recroDict;
+
+    private IRecroSecService _recroSec;
 
     private RgFilterHandler? _filterHandler { get; set; }
 

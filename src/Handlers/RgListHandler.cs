@@ -756,7 +756,6 @@ internal class RgListHandler : IDisposable, IRgListHandler
             if (result?.Success != true)
             {
                 ItemCount.Value = 0;
-                Initialized = false;
                 return false;
             }
 

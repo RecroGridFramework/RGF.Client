@@ -601,7 +601,7 @@ internal class RgListHandler : IDisposable, IRgListHandler
         RgfGridSettings settings = new()
         {
             ColumnSettings = EntityDesc.SortedVisibleColumns.Select(e => new RgfColumnSettings(e)).ToArray(),
-            Filter = ListParam.UserFilter,
+            Conditions = ListParam.UserFilter,
             Sort = ListParam.Sort,
             PageSize = PageSize.Value,
             SQLTimeout = ListParam.SQLTimeout

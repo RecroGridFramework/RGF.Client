@@ -48,7 +48,9 @@ public interface IRgManager : IDisposable
 
     Task InitFilterHandlerAsync(string condition);
 
-    Task<RgfResult<RgfPredefinedFilterResult>> SavePredefinedFilterAsync(RgfPredefinedFilter predefinedFilter);
+    Task<RgfResult<RgfFilterSetting>> SaveFilterSettingsAsync(RgfFilterSettings predefinedFilter);
+
+    Task<bool> DeleteFilterSettingsAsync(int filterSettingsId);
 
     Task<RgfGridSetting?> SaveGridSettingsAsync(RgfGridSettings settings, bool recreate = false);
 
@@ -187,7 +189,7 @@ public class RgManager : IRgManager
         if (_filterHandler == null)
         {
             string? xmlFilter = null;
-            List<RgfPredefinedFilter>? predefinedFilters = null;
+            List<RgfFilterSettings>? filterSettings = null;
             var res = await _rgfService.GetFilterAsync(CreateGridRequest());
             if (!res.Success)
             {
@@ -203,11 +205,11 @@ public class RgManager : IRgManager
                 {
                     var result = res.Result.Result;
                     xmlFilter = result.XmlFilter;
-                    predefinedFilters = result.PredefinedFilter;
+                    filterSettings = result.FilterSettings;
                 }
             }
             string condition = EntityDesc.Options.GetStringValue("RGO_FilterParams");
-            _filterHandler = new RgFilterHandler(this, EntityDesc, xmlFilter, condition, predefinedFilters);
+            _filterHandler = new RgFilterHandler(this, EntityDesc, xmlFilter, condition, filterSettings);
             ListHandler.InitFilter(_filterHandler.StoreFilter());
         }
         return _filterHandler!;
@@ -226,18 +228,33 @@ public class RgManager : IRgManager
         }
     }
 
-    public async Task<RgfResult<RgfPredefinedFilterResult>> SavePredefinedFilterAsync(RgfPredefinedFilter predefinedFilter)
+    public async Task<RgfResult<RgfFilterSetting>> SaveFilterSettingsAsync(RgfFilterSettings filterSettings)
     {
         var request = CreateGridRequest((request) =>
         {
-            request.PredefinedFilter = predefinedFilter;
+            request.FilterSettings = filterSettings;
         });
-        var res = await _rgfService.SavePredefinedFilterAsync(request);
+        var res = await _rgfService.SaveFilterSettingsAsync(request);
         if (!res.Success)
         {
             await NotificationManager.RaiseEventAsync(new RgfUserMessageEventArgs(_recroDict, UserMessageType.Error, res.ErrorMessage), this);
         }
         return res.Result;
+    }
+
+    public virtual async Task<bool> DeleteFilterSettingsAsync(int filterSettingsId)
+    {
+        var request = CreateGridRequest((request) =>
+        {
+            request.FilterSettings = new() { FilterSettingsId = filterSettingsId };
+        });
+        var res = await _rgfService.DeleteFilterSettingsAsync(request);
+        if (!res.Success)
+        {
+            await NotificationManager.RaiseEventAsync(new RgfUserMessageEventArgs(_recroDict, UserMessageType.Error, res.ErrorMessage), this);
+            return false;
+        }
+        return true;
     }
 
     public event EventHandler<CreateGridRequestEventArgs>? CreateGridRequestCreated;
@@ -418,7 +435,7 @@ public class RgManager : IRgManager
             var gs = ListHandler.GetGridSettings();
             request.ChartSettings.ParentGridSettings = new RgfGridSettings()
             {
-                Filter = gs.Filter,
+                Conditions = gs.Conditions,
                 SQLTimeout = gs.SQLTimeout
             };
         });

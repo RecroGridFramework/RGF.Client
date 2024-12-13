@@ -8,7 +8,7 @@ public interface IRgFilterHandler
 {
     List<RgfFilter.Condition> Conditions { get; }
 
-    List<RgfPredefinedFilter> PredefinedFilters { get; }
+    List<RgfFilterSettings> PredefinedFilters { get; }
 
     RgfFilterProperty[] RgfFilterProperties { get; }
 
@@ -32,16 +32,18 @@ public interface IRgFilterHandler
 
     Task SetFilterAsync(IEnumerable<RgfFilter.Condition>? conditions, int? sqlTimeout);
 
-    RgfPredefinedFilter? SelectPredefinedFilter(string key);
+    RgfFilterSettings? SelectPredefinedFilter(int? filterSettingsId);
 
-    Task<bool> SavePredefinedFilterAsync(RgfPredefinedFilter PredefinedFilter, bool remove = false);
+    Task<bool> SaveFilterSettingsAsync(RgfFilterSettings filterSettings);
+
+    Task<bool> DeleteFilterSettingsAsync(int filterSettingsId);
 
     RgfFilter.Condition[] StoreFilter();
 }
 
 internal class RgFilterHandler : IRgFilterHandler
 {
-    public RgFilterHandler(IRgManager manager, RgfEntity entity, string? xmlfilter = null, string? jsonConditions = null, List<RgfPredefinedFilter>? predefinedFilters = null)
+    public RgFilterHandler(IRgManager manager, RgfEntity entity, string? xmlfilter = null, string? jsonConditions = null, List<RgfFilterSettings>? predefinedFilters = null)
     {
         _manager = manager;
         _entity = entity;
@@ -50,7 +52,7 @@ internal class RgFilterHandler : IRgFilterHandler
             _filter = new RgfFilter();
         }
         InitFilter(jsonConditions);
-        PredefinedFilters = predefinedFilters ?? new List<RgfPredefinedFilter>();
+        PredefinedFilters = predefinedFilters ?? new List<RgfFilterSettings>();
     }
 
     private readonly RgfEntity _entity;
@@ -80,10 +82,7 @@ internal class RgFilterHandler : IRgFilterHandler
     {
         get
         {
-            if (_conditions == null)
-            {
-                _conditions = [];
-            }
+            _conditions ??= [];
             return _conditions;
         }
         set
@@ -93,7 +92,7 @@ internal class RgFilterHandler : IRgFilterHandler
         }
     }
 
-    public List<RgfPredefinedFilter> PredefinedFilters { get; set; }
+    public List<RgfFilterSettings> PredefinedFilters { get; set; }
 
     public bool ResetFilter() => InitFilter(_jsonConditions);
 
@@ -349,49 +348,51 @@ internal class RgFilterHandler : IRgFilterHandler
         await _manager.ListHandler.SetFilterAsync([.. Conditions], sqlTimeout);
     }
 
-    public RgfPredefinedFilter? SelectPredefinedFilter(string key)
+    public RgfFilterSettings? SelectPredefinedFilter(int? filterSettingsId)
     {
-        var filter = PredefinedFilters.SingleOrDefault(e => e.Key == key);
+        var filter = PredefinedFilters.SingleOrDefault(e => e.FilterSettingsId == filterSettingsId);
         if (filter != null)
         {
+            filter = RgfFilterSettings.DeepCopy(filter);
             Conditions = filter.Conditions.ToList();
         }
         return filter;
     }
 
-    public async Task<bool> SavePredefinedFilterAsync(RgfPredefinedFilter filter, bool remove = false)
+    public async Task<bool> SaveFilterSettingsAsync(RgfFilterSettings filter)
     {
-        if (!string.IsNullOrWhiteSpace(filter.Name))
+        if (string.IsNullOrWhiteSpace(filter.SettingsName))
         {
-            filter.Conditions = remove ? null : Conditions.ToArray();
-            var res = await _manager.SavePredefinedFilterAsync(filter);
-            if (!res.Success)
-            {
-                await _manager.BroadcastMessages(res.Messages, this);
-            }
-            else
-            {
-                if (remove)
-                {
-                    //PredefinedFilters.Remove(PredefinedFilter);
-                    //We need a new list for the ComboBox DataSource to refresh.
-                    PredefinedFilters = PredefinedFilters.Where(e => e.Key != filter.Key).ToList();
-                }
-                else
-                {
-                    if (string.IsNullOrEmpty(filter.Key))
-                    {
-                        filter.Key = res.Result.Key;
-                        PredefinedFilters.Insert(0, filter);
-                        //We need a new list for the ComboBox DataSource to refresh.
-                        PredefinedFilters = PredefinedFilters.ToList();
-                    }
-                    filter.IsGlobal = res.Result.IsGlobal;
-                }
-                return true;
-            }
+            return false;
         }
-        return false;
+
+        filter.Conditions = Conditions.ToArray();
+        var res = await _manager.SaveFilterSettingsAsync(filter);
+        if (!res.Success)
+        {
+            await _manager.BroadcastMessages(res.Messages, this);
+            return false;
+        }
+        if (filter.FilterSettingsId == null || filter.FilterSettingsId == 0)
+        {
+            filter.FilterSettingsId = res.Result.FilterSettingsId;
+        }
+        //We need a new list for the ComboBox DataSource to refresh.
+        PredefinedFilters = PredefinedFilters.Where(e => e.FilterSettingsId != filter.FilterSettingsId).ToList();
+        PredefinedFilters.Insert(0, RgfFilterSettings.DeepCopy(filter));
+        return true;
+    }
+
+    public async Task<bool> DeleteFilterSettingsAsync(int filterSettingsId)
+    {
+        var success = await _manager.DeleteFilterSettingsAsync(filterSettingsId);
+        if (!success)
+        {
+            return false;
+        }
+        //We need a new list for the ComboBox DataSource to refresh.
+        PredefinedFilters = PredefinedFilters.Where(e => e.FilterSettingsId != filterSettingsId).ToList();
+        return true;
     }
     #endregion
 }

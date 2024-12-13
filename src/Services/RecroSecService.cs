@@ -93,6 +93,8 @@ internal class RecroSecService : IRecroSecService, IDisposable
 
     public bool IsAdmin { get; private set; }
 
+    public Dictionary<string, string> Roles { get; private set; } = [];
+
     public ClaimsPrincipal CurrentUser { get; private set; } = new();
 
     public async Task<string?> GetAccessTokenAsync()
@@ -135,6 +137,7 @@ internal class RecroSecService : IRecroSecService, IDisposable
     private async void OnAuthenticationStateChanged(Task<AuthenticationState> stateTask)
     {
         IsAdmin = false;
+        Roles = [];
         var authenticationState = await stateTask;
         CurrentUser = authenticationState.User ?? new();
         //var roles = CurrentUser.FindFirst("role")?.Value ?? CurrentUser.FindFirst("roles")?.Value : "?";
@@ -145,6 +148,10 @@ internal class RecroSecService : IRecroSecService, IDisposable
             if (resp.Success && resp.Result.IsValid)
             {
                 IsAdmin = resp.Result.IsAdmin;
+                if (resp.Result.Roles != null)
+                {
+                    Roles = resp.Result.Roles;
+                }
                 if (!string.IsNullOrEmpty(resp.Result.Language))
                 {
                     await SetLangAsync(resp.Result.Language);

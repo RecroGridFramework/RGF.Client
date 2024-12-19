@@ -12,6 +12,12 @@ using System.Reflection;
 
 namespace Recrovit.RecroGridFramework.Client.Handlers;
 
+public enum RfgDisplayMode
+{
+    Grid = 1,
+    Tree = 2
+}
+
 public interface IRgManager : IDisposable
 {
     RgfSessionParams SessionParams { get; }
@@ -98,6 +104,8 @@ public interface IRgManager : IDisposable
 public static class IRgManagerExtensions
 {
     public static List<RgfDynamicDictionary> GetSelectedRowsData(this IRgManager manager) => manager.ListHandler.GetSelectedRowsData(manager.SelectedItems.Value);
+
+    public static bool ValidFormKeyExists(this IRgManager manager) => manager.FormViewKey?.Value?.EntityKey.IsEmpty == false;
 }
 
 public class RgManager : IRgManager
@@ -613,12 +621,21 @@ public class RgManager : IRgManager
 
             case RgfToolbarEventKind.Edit:
             case RgfToolbarEventKind.Read:
-                if (SelectedItems.Value.Count == 1 && (ListHandler.CRUD.Read || ListHandler.CRUD.Edit) && EntityDesc.Options.GetBoolValue("RGO_NoDetails") != true)
                 {
-                    var data = SelectedItems.Value.SingleOrDefault();
-                    if (data.Value?.IsEmpty == false)
+                    FormViewKey? key = null;
+                    if (arg.Args.Data != null && ListHandler.GetEntityKey(arg.Args.Data, out var entityKey) && entityKey != null)
                     {
-                        FormViewKey.Value = new(data.Value, data.Key);
+                        var idx = ListHandler.GetAbsoluteRowIndex(arg.Args.Data);
+                        key = new(entityKey, idx);
+                    }
+                    if (key == null && SelectedItems.Value.Count == 1 && (ListHandler.CRUD.Read || ListHandler.CRUD.Edit) && EntityDesc.Options.GetBoolValue("RGO_NoDetails") != true)
+                    {
+                        var data = SelectedItems.Value.SingleOrDefault();
+                        key = new(data.Value, data.Key);
+                    }
+                    if (key?.EntityKey.IsEmpty == false)
+                    {
+                        FormViewKey.Value = key;
                     }
                 }
                 break;

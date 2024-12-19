@@ -423,6 +423,8 @@ public class RgfFilterProperty : IRgfProperty
 
     public string ClientName { get => _property.ClientName; set { _property.ClientName = value; } }
 
+    public string BaseEntityNameVersion { get => _property.BaseEntityNameVersion; set { _property.BaseEntityNameVersion = value; } }
+
     public int ColPos { get => _property.ColPos; set { _property.ColPos = value; } }
 
     public string ColTitle { get => _property.ColTitle; set { _property.ColTitle = value; } }

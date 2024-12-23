@@ -54,6 +54,8 @@ public interface IRgManager : IDisposable
 
     Task InitFilterHandlerAsync(string condition);
 
+    bool IsColumnFiltered(IRgfProperty property, string? matchCriteria = null);
+
     Task<RgfResult<RgfFilterSetting>> SaveFilterSettingsAsync(RgfFilterSettings predefinedFilter);
 
     Task<bool> DeleteFilterSettingsAsync(int filterSettingsId);
@@ -235,6 +237,8 @@ public class RgManager : IRgManager
             await GetFilterHandlerAsync();
         }
     }
+
+    public bool IsColumnFiltered(IRgfProperty property, string? matchCriteria = null) => _filterHandler?.IsColumnFiltered(property, matchCriteria) == true;
 
     public async Task<RgfResult<RgfFilterSetting>> SaveFilterSettingsAsync(RgfFilterSettings filterSettings)
     {

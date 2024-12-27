@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Recrovit.RecroGridFramework.Abstraction.Contracts.Constants;
 using Recrovit.RecroGridFramework.Abstraction.Contracts.Services;
 using Recrovit.RecroGridFramework.Client.Services;
 using System.Reflection;
@@ -10,7 +11,16 @@ namespace Recrovit.RecroGridFramework.Client;
 public class RgfClientConfiguration
 {
     public static bool IsInitialized { get; internal set; } = false;
+
     public static string AppRootPath { get; internal set; } = "/";
+
+    public static string Version => _version.Value;
+
+    private static readonly Lazy<string> _version = new Lazy<string>(() => Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyFileVersionAttribute>()!.Version);
+
+    public static Dictionary<string, string> ClientVersions { get; } = [];
+
+    public static Version MinimumRgfCoreVersion = new Version(8, 13, 0);//RGF.Core MinVersion
 }
 
 public static class RgfClientConfigurationExtension
@@ -32,6 +42,8 @@ public static class RgfClientConfigurationExtension
             logger?.LogCritical(msg);
             throw new InvalidOperationException(msg);
         }
+
+        RgfClientConfiguration.ClientVersions.TryAdd(RgfHeaderKeys.RgfClientVersion, RgfClientConfiguration.Version);
 
         services.AddHttpClient(ApiService.RgfApiClientName, httpClient =>
         {
@@ -57,9 +69,8 @@ public static class RgfClientConfigurationExtension
                 await recroDict.InitializeAsync();
                 _ = serviceProvider.GetRequiredService<IRecroSecService>();
             }
-            var ver = Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyFileVersionAttribute>()?.Version;
             var logger = serviceProvider.GetRequiredService<ILogger<RgfClientConfiguration>>();
-            logger?.LogInformation("RecroGrid Framework Client v{Version} initialized.", ver);
+            logger?.LogInformation("RecroGrid Framework Client v{Version} initialized.", RgfClientConfiguration.Version);
             RgfClientConfiguration.IsInitialized = true;
         }
     }

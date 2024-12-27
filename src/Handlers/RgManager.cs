@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Recrovit.RecroGridFramework.Abstraction.Contracts.API;
+using Recrovit.RecroGridFramework.Abstraction.Contracts.Constants;
 using Recrovit.RecroGridFramework.Abstraction.Contracts.Services;
 using Recrovit.RecroGridFramework.Abstraction.Extensions;
 using Recrovit.RecroGridFramework.Abstraction.Models;
@@ -147,6 +148,9 @@ public class RgManager : IRgManager
         {
             await GetFilterHandlerAsync();
         }
+
+        await VersionCompatibilityAsync();
+
         return true;
     }
 
@@ -191,6 +195,8 @@ public class RgManager : IRgManager
     private IRecroDictService _recroDict;
 
     private IRecroSecService _recroSec;
+
+    private static Version? CurrentRgfCoreVersion;
 
     private RgFilterHandler? _filterHandler { get; set; }
 
@@ -587,21 +593,21 @@ public class RgManager : IRgManager
             {
                 foreach (var item in messages.Error)
                 {
-                    await NotificationManager.RaiseEventAsync(new RgfUserMessageEventArgs(_recroDict, UserMessageType.Error, item.Value), sender);
+                    await NotificationManager.RaiseEventAsync(new RgfUserMessageEventArgs(_recroDict, UserMessageType.Error, item.Value.Replace("\r\n", "<br/>")), sender);
                 }
             }
             if (messages.Warning != null)
             {
                 foreach (var item in messages.Warning)
                 {
-                    await NotificationManager.RaiseEventAsync(new RgfUserMessageEventArgs(_recroDict, UserMessageType.Warning, item.Value), sender);
+                    await NotificationManager.RaiseEventAsync(new RgfUserMessageEventArgs(_recroDict, UserMessageType.Warning, item.Value.Replace("\r\n", "<br/>")), sender);
                 }
             }
             if (messages.Info != null)
             {
                 foreach (var item in messages.Info)
                 {
-                    await NotificationManager.RaiseEventAsync(new RgfUserMessageEventArgs(_recroDict, UserMessageType.Information, item.Value), sender);
+                    await NotificationManager.RaiseEventAsync(new RgfUserMessageEventArgs(_recroDict, UserMessageType.Information, item.Value.Replace("\r\n", "<br/>")), sender);
                 }
             }
         }
@@ -705,6 +711,38 @@ public class RgManager : IRgManager
             }
         }
         return about;
+    }
+
+    private async Task VersionCompatibilityAsync()
+    {
+        if (CurrentRgfCoreVersion != null)
+        {
+            return;
+        }
+
+        var res = await _rgfService.VersionCompatibilityAsync();
+        if (!res.Success)
+        {
+            await NotificationManager.RaiseEventAsync(new RgfUserMessageEventArgs(_recroDict, UserMessageType.Error, res.ErrorMessage), this);
+        }
+        else
+        {
+            if (res.Result.Result.TryGetValue(RgfHeaderKeys.RgfCoreVersion, out var version) &&
+                Version.TryParse(version, out CurrentRgfCoreVersion) &&
+                CurrentRgfCoreVersion < RgfClientConfiguration.MinimumRgfCoreVersion)
+            {
+                const string incompatibilityMessageTemplate =
+                    $"The RGF Server Core is running version {{0}}, but the current RGF Client Blazor requires at least version {{1}}.\r\n Please update the RGF Server Core to avoid unexpected behavior.";
+
+                _logger.LogWarning(incompatibilityMessageTemplate.Replace("\r\n", ""), CurrentRgfCoreVersion, RgfClientConfiguration.MinimumRgfCoreVersion);
+                await NotificationManager.RaiseEventAsync(new RgfUserMessageEventArgs(
+                    UserMessageType.Warning,
+                    string.Format(incompatibilityMessageTemplate.Replace("\r\n", "<br/>"),
+                    CurrentRgfCoreVersion,
+                    RgfClientConfiguration.MinimumRgfCoreVersion), "Incompatible RGF version detected"), this);
+            }
+            await BroadcastMessages(res.Result.Messages, this);
+        }
     }
 
     public void Dispose()

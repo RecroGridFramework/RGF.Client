@@ -89,6 +89,8 @@ public interface IRgManager : IDisposable
 
     Task<RgfResult<RgfFormResult>> GetFormAsync(RgfGridRequest request);
 
+    Task<RgfPropertyTooltips> GetPropertyTooltipsAsync();
+
     Task<RgfResult<RgfFormResult>> UpdateFormDataAsync(RgfGridRequest request);
 
     Task<RgfResult<RgfFormResult>> DeleteDataAsync(RgfEntityKey entityKey);
@@ -154,7 +156,6 @@ public class RgManager : IRgManager
         return true;
     }
 
-
     public IServiceProvider ServiceProvider { get; }
 
     public IRgfNotificationManager NotificationManager { get; }
@@ -199,6 +200,8 @@ public class RgManager : IRgManager
     private static Version? CurrentRgfCoreVersion;
 
     private RgFilterHandler? _filterHandler { get; set; }
+
+    private RgfPropertyTooltips? _propertyTooltips;
 
     public async Task<IRgFilterHandler> GetFilterHandlerAsync()
     {
@@ -514,6 +517,22 @@ public class RgManager : IRgManager
             await NotificationManager.RaiseEventAsync(new RgfUserMessageEventArgs(_recroDict, UserMessageType.Error, res.ErrorMessage), this);
         }
         return res.Result;
+    }
+
+    public async Task<RgfPropertyTooltips> GetPropertyTooltipsAsync() => _propertyTooltips ??= await LoadPropertyTooltipsAsync();
+
+    private async Task<RgfPropertyTooltips> LoadPropertyTooltipsAsync()
+    {
+        var res = await GetResourceAsync<string>("RecroGrid.xml", new Dictionary<string, string>() {
+            { "t", "tt" },
+            { "e", EntityDesc.EntityId.ToString() },
+            { "lang", _recroSec.UserLanguage }
+        });
+        if (!string.IsNullOrEmpty(res) && RgfPropertyTooltips.Deserialize(res, out var tooltips))
+        {
+            return tooltips;
+        }
+        return new RgfPropertyTooltips() { EntityId = EntityDesc.EntityId };
     }
 
     public virtual async Task<RgfResult<RgfFormResult>> UpdateFormDataAsync(RgfGridRequest request)

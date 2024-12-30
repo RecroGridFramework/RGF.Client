@@ -11,10 +11,13 @@ namespace Recrovit.RecroGridFramework.Client.Services;
 public class ApiService : IRgfApiService
 {
     private readonly IHttpClientFactory _httpClientFactory;
+
     private readonly ILogger<ApiService> _logger;
 
-    public static string RgfApiClientName => "RGF.API";
-    public static string RgfAuthApiClientName => "RGF.API.AUTH";
+    public const string RgfApiClientName = "RGF.API";
+
+    public const string RgfAuthApiClientName = "RGF.API.AUTH";
+
     public static string BaseAddress { get; set; } = default!;
 
     public ApiService(IHttpClientFactory httpClientFactory, ILogger<ApiService> logger)
@@ -25,41 +28,63 @@ public class ApiService : IRgfApiService
 
     public async Task<IRgfApiResponse<ResultType>> GetAsync<ResultType>(IRgfApiRequest request) where ResultType : class
     {
-        var res = new ApiResponse<ResultType>() { Success = false };
+        var result = new ApiResponse<ResultType>() { Success = false };
         try
         {
             using var httpClient = _httpClientFactory.CreateClient(request.AuthClient ? RgfAuthApiClientName : RgfApiClientName);
+            if (request.AdditionalHeaders != null)
+            {
+                foreach (var item in request.AdditionalHeaders)
+                {
+                    httpClient.DefaultRequestHeaders.TryAddWithoutValidation(item.Key, item.Value);
+                }
+            }
+            foreach (var item in RgfClientConfiguration.ClientVersions)
+            {
+                httpClient.DefaultRequestHeaders.TryAddWithoutValidation(item.Key, item.Value);
+            }
             var uriBuilder = new UriBuilder(new Uri(httpClient.BaseAddress!, request.Uri)) { Query = request.Query };
             _logger.LogDebug("GetAsync => uri:{uri}", uriBuilder.Uri.PathAndQuery);
             var response = await httpClient.GetAsync(uriBuilder.Uri, request.CancellationToken);
-            await GetResult(request, response, res);
+            await GetResult(request, response, result);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, null);
-            res.ErrorMessage = string.IsNullOrEmpty(ex.Message) || ex.Message == "''" ? ex.GetType().Name : ex.Message;
+            result.ErrorMessage = string.IsNullOrEmpty(ex.Message) || ex.Message == "''" ? ex.GetType().Name : ex.Message;
         }
-        return res;
+        return result;
     }
 
     public async Task<IRgfApiResponse<ResultType>> PostAsync<ResultType>(IRgfApiRequest request) where ResultType : class
     {
-        var res = new ApiResponse<ResultType>() { Success = false };
+        var result = new ApiResponse<ResultType>() { Success = false };
         try
         {
             using var httpClient = _httpClientFactory.CreateClient(request.AuthClient ? RgfAuthApiClientName : RgfApiClientName);
+            if (request.AdditionalHeaders != null)
+            {
+                foreach (var item in request.AdditionalHeaders)
+                {
+                    httpClient.DefaultRequestHeaders.TryAddWithoutValidation(item.Key, item.Value);
+                }
+            }
+            foreach (var item in RgfClientConfiguration.ClientVersions)
+            {
+                httpClient.DefaultRequestHeaders.TryAddWithoutValidation(item.Key, item.Value);
+            }
             var response = await httpClient.PostAsync(request.Uri, request.Content, request.CancellationToken);
-            await GetResult(request, response, res);
+            await GetResult(request, response, result);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, null);
-            res.ErrorMessage = string.IsNullOrEmpty(ex.Message) || ex.Message == "''" ? ex.GetType().Name : ex.Message;
+            result.ErrorMessage = string.IsNullOrEmpty(ex.Message) || ex.Message == "''" ? ex.GetType().Name : ex.Message;
         }
-        return res;
+        return result;
     }
 
-    private static async Task GetResult<ResultType>(IRgfApiRequest request, HttpResponseMessage response, ApiResponse<ResultType> result) where ResultType : class
+    private async Task GetResult<ResultType>(IRgfApiRequest request, HttpResponseMessage response, ApiResponse<ResultType> result) where ResultType : class
     {
         result.StatusCode = response.StatusCode;
         if (response.IsSuccessStatusCode)
@@ -137,4 +162,6 @@ public static class IRgfServiceExtension
     public static Task<IRgfApiResponse<List<RecroSecResult>>> GetPermissionsAsync(this IRgfApiService service, IEnumerable<RecroSecQuery> param) => service.PostAsync<List<RecroSecResult>, IEnumerable<RecroSecQuery>>($"/rgf/api/recrosec/Permissions", param);
 
     public static Task<IRgfApiResponse<RgfUserState>> GetUserStateAsync(this IRgfApiService service, Dictionary<string, string>? query = null) => service.GetAsync<RgfUserState>($"/rgf/api/recrosec/UserState", query);
+
+    public static Task<IRgfApiResponse<RgfResult<Dictionary<string, string>>>> VersionCompatibilityAsync(this IRgfApiService service) => service.GetAsync<RgfResult<Dictionary<string, string>>>($"/rgf/api/version-compatibility");
 }

@@ -12,7 +12,9 @@ public enum RgfToolbarEventKind
     Read = 5,
     Delete = 6,
     Select = 7,
-    RecroChart = 8
+    RecroChart = 8,
+    ToggleDisplayMode = 9,
+    ToggleQuickFilter = 10,
 }
 
 public class RgfToolbarEventArgs : EventArgs

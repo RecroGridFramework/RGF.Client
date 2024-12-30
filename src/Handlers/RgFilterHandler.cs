@@ -12,6 +12,10 @@ public interface IRgFilterHandler
 
     RgfFilterProperty[] RgfFilterProperties { get; }
 
+    bool IsColumnFiltered(IRgfProperty property, string? matchCriteria = null);
+
+    Task SetQuickFilterAsync(IRgfProperty property, object? condition);
+
     int FindCondition(IList<RgfFilter.Condition> conditions, int clientId, out RgfFilter.Condition condition);
 
     void AddBracket(int clientId);
@@ -93,6 +97,62 @@ internal class RgFilterHandler : IRgFilterHandler
     }
 
     public List<RgfFilterSettings> PredefinedFilters { get; set; }
+
+    public bool IsColumnFiltered(IRgfProperty property, string? matchCriteria = null) => IsColumnFilteredRecursive(Conditions, property, matchCriteria);
+
+    private bool IsColumnFilteredRecursive(IEnumerable<RgfFilter.Condition> conditions, IRgfProperty property, string? matchCriteria)
+    {
+        foreach (var item in conditions)
+        {
+            if (item.PropertyId == property.Id &&
+                (matchCriteria == null || item.IsQuickFilter && matchCriteria.Equals(item.Param1.ToString(), StringComparison.OrdinalIgnoreCase)))
+            {
+                return true;
+            }
+
+            if (item.Conditions != null && IsColumnFilteredRecursive(item.Conditions, property, matchCriteria))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public async Task SetQuickFilterAsync(IRgfProperty property, object? condition)
+    {
+        if (string.IsNullOrWhiteSpace(condition?.ToString()))
+        {
+            condition = null;
+        }
+        var quickFilter = Conditions.FirstOrDefault(e => e.IsQuickFilter && e.PropertyId == property.Id);
+        if (quickFilter == null && condition == null)
+        {
+            return;
+        }
+
+        if (quickFilter != null && condition == null)
+        {
+            Conditions.Remove(quickFilter);
+        }
+        else
+        {
+            if (quickFilter == null)
+            {
+                quickFilter = new RgfFilter.Condition()
+                {
+                    ClientId = ++_maxConditionId,
+                    PropertyId = property.Id,
+                    LogicalOperator = RgfFilter.LogicalOperator.And,
+                    QueryOperator = property.ClientDataType == ClientDataType.String ? RgfFilter.QueryOperator.Like : RgfFilter.QueryOperator.Equal,
+                    IsQuickFilter = true
+                };
+                Conditions.Add(quickFilter);
+            }
+            quickFilter.Param1 = condition?.ToString();
+        }
+
+        await _manager.ListHandler.SetFilterAsync(StoreFilter(), _manager.ListHandler.SQLTimeout);
+    }
 
     public bool ResetFilter() => InitFilter(_jsonConditions);
 
@@ -422,6 +482,8 @@ public class RgfFilterProperty : IRgfProperty
     public string Alias { get => _property.Alias; set { _property.Alias = value; } }
 
     public string ClientName { get => _property.ClientName; set { _property.ClientName = value; } }
+
+    public string BaseEntityNameVersion { get => _property.BaseEntityNameVersion; set { _property.BaseEntityNameVersion = value; } }
 
     public int ColPos { get => _property.ColPos; set { _property.ColPos = value; } }
 

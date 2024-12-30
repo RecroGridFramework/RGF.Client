@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Recrovit.RecroGridFramework.Abstraction.Contracts.API;
+using Recrovit.RecroGridFramework.Abstraction.Contracts.Constants;
 using Recrovit.RecroGridFramework.Abstraction.Contracts.Services;
 using Recrovit.RecroGridFramework.Abstraction.Extensions;
 using Recrovit.RecroGridFramework.Abstraction.Models;
@@ -11,6 +12,12 @@ using System.ComponentModel;
 using System.Reflection;
 
 namespace Recrovit.RecroGridFramework.Client.Handlers;
+
+public enum RfgDisplayMode
+{
+    Grid = 1,
+    Tree = 2
+}
 
 public interface IRgManager : IDisposable
 {
@@ -48,6 +55,8 @@ public interface IRgManager : IDisposable
 
     Task InitFilterHandlerAsync(string condition);
 
+    bool IsColumnFiltered(IRgfProperty property, string? matchCriteria = null);
+
     Task<RgfResult<RgfFilterSetting>> SaveFilterSettingsAsync(RgfFilterSettings predefinedFilter);
 
     Task<bool> DeleteFilterSettingsAsync(int filterSettingsId);
@@ -80,6 +89,8 @@ public interface IRgManager : IDisposable
 
     Task<RgfResult<RgfFormResult>> GetFormAsync(RgfGridRequest request);
 
+    Task<RgfPropertyTooltips> GetPropertyTooltipsAsync();
+
     Task<RgfResult<RgfFormResult>> UpdateFormDataAsync(RgfGridRequest request);
 
     Task<RgfResult<RgfFormResult>> DeleteDataAsync(RgfEntityKey entityKey);
@@ -98,6 +109,8 @@ public interface IRgManager : IDisposable
 public static class IRgManagerExtensions
 {
     public static List<RgfDynamicDictionary> GetSelectedRowsData(this IRgManager manager) => manager.ListHandler.GetSelectedRowsData(manager.SelectedItems.Value);
+
+    public static bool ValidFormKeyExists(this IRgManager manager) => manager.FormViewKey?.Value?.EntityKey.IsEmpty == false;
 }
 
 public class RgManager : IRgManager
@@ -137,9 +150,11 @@ public class RgManager : IRgManager
         {
             await GetFilterHandlerAsync();
         }
+
+        await VersionCompatibilityAsync();
+
         return true;
     }
-
 
     public IServiceProvider ServiceProvider { get; }
 
@@ -182,7 +197,11 @@ public class RgManager : IRgManager
 
     private IRecroSecService _recroSec;
 
+    private static Version? CurrentRgfCoreVersion;
+
     private RgFilterHandler? _filterHandler { get; set; }
+
+    private RgfPropertyTooltips? _propertyTooltips;
 
     public async Task<IRgFilterHandler> GetFilterHandlerAsync()
     {
@@ -227,6 +246,8 @@ public class RgManager : IRgManager
             await GetFilterHandlerAsync();
         }
     }
+
+    public bool IsColumnFiltered(IRgfProperty property, string? matchCriteria = null) => _filterHandler?.IsColumnFiltered(property, matchCriteria) == true;
 
     public async Task<RgfResult<RgfFilterSetting>> SaveFilterSettingsAsync(RgfFilterSettings filterSettings)
     {
@@ -498,6 +519,22 @@ public class RgManager : IRgManager
         return res.Result;
     }
 
+    public async Task<RgfPropertyTooltips> GetPropertyTooltipsAsync() => _propertyTooltips ??= await LoadPropertyTooltipsAsync();
+
+    private async Task<RgfPropertyTooltips> LoadPropertyTooltipsAsync()
+    {
+        var res = await GetResourceAsync<string>("RecroGrid.xml", new Dictionary<string, string>() {
+            { "t", "tt" },
+            { "e", EntityDesc.EntityId.ToString() },
+            { "lang", _recroSec.UserLanguage }
+        });
+        if (!string.IsNullOrEmpty(res) && RgfPropertyTooltips.Deserialize(res, out var tooltips))
+        {
+            return tooltips;
+        }
+        return new RgfPropertyTooltips() { EntityId = EntityDesc.EntityId };
+    }
+
     public virtual async Task<RgfResult<RgfFormResult>> UpdateFormDataAsync(RgfGridRequest request)
     {
         request.UserColumns = ListHandler.UserColumns.ToArray();
@@ -575,21 +612,21 @@ public class RgManager : IRgManager
             {
                 foreach (var item in messages.Error)
                 {
-                    await NotificationManager.RaiseEventAsync(new RgfUserMessageEventArgs(_recroDict, UserMessageType.Error, item.Value), sender);
+                    await NotificationManager.RaiseEventAsync(new RgfUserMessageEventArgs(_recroDict, UserMessageType.Error, item.Value.Replace("\r\n", "<br/>")), sender);
                 }
             }
             if (messages.Warning != null)
             {
                 foreach (var item in messages.Warning)
                 {
-                    await NotificationManager.RaiseEventAsync(new RgfUserMessageEventArgs(_recroDict, UserMessageType.Warning, item.Value), sender);
+                    await NotificationManager.RaiseEventAsync(new RgfUserMessageEventArgs(_recroDict, UserMessageType.Warning, item.Value.Replace("\r\n", "<br/>")), sender);
                 }
             }
             if (messages.Info != null)
             {
                 foreach (var item in messages.Info)
                 {
-                    await NotificationManager.RaiseEventAsync(new RgfUserMessageEventArgs(_recroDict, UserMessageType.Information, item.Value), sender);
+                    await NotificationManager.RaiseEventAsync(new RgfUserMessageEventArgs(_recroDict, UserMessageType.Information, item.Value.Replace("\r\n", "<br/>")), sender);
                 }
             }
         }
@@ -613,12 +650,21 @@ public class RgManager : IRgManager
 
             case RgfToolbarEventKind.Edit:
             case RgfToolbarEventKind.Read:
-                if (SelectedItems.Value.Count == 1 && (ListHandler.CRUD.Read || ListHandler.CRUD.Edit) && EntityDesc.Options.GetBoolValue("RGO_NoDetails") != true)
                 {
-                    var data = SelectedItems.Value.SingleOrDefault();
-                    if (data.Value?.IsEmpty == false)
+                    FormViewKey? key = null;
+                    if (arg.Args.Data != null && ListHandler.GetEntityKey(arg.Args.Data, out var entityKey) && entityKey != null)
                     {
-                        FormViewKey.Value = new(data.Value, data.Key);
+                        var idx = ListHandler.GetAbsoluteRowIndex(arg.Args.Data);
+                        key = new(entityKey, idx);
+                    }
+                    if (key == null && SelectedItems.Value.Count == 1 && (ListHandler.CRUD.Read || ListHandler.CRUD.Edit) && EntityDesc.Options.GetBoolValue("RGO_NoDetails") != true)
+                    {
+                        var data = SelectedItems.Value.SingleOrDefault();
+                        key = new(data.Value, data.Key);
+                    }
+                    if (key?.EntityKey.IsEmpty == false)
+                    {
+                        FormViewKey.Value = key;
                     }
                 }
                 break;
@@ -684,6 +730,38 @@ public class RgManager : IRgManager
             }
         }
         return about;
+    }
+
+    private async Task VersionCompatibilityAsync()
+    {
+        if (CurrentRgfCoreVersion != null)
+        {
+            return;
+        }
+
+        var res = await _rgfService.VersionCompatibilityAsync();
+        if (!res.Success)
+        {
+            await NotificationManager.RaiseEventAsync(new RgfUserMessageEventArgs(_recroDict, UserMessageType.Error, res.ErrorMessage), this);
+        }
+        else
+        {
+            if (res.Result.Result.TryGetValue(RgfHeaderKeys.RgfCoreVersion, out var version) &&
+                Version.TryParse(version, out CurrentRgfCoreVersion) &&
+                CurrentRgfCoreVersion < RgfClientConfiguration.MinimumRgfCoreVersion)
+            {
+                const string incompatibilityMessageTemplate =
+                    $"The RGF Server Core is running version {{0}}, but the current RGF Client Blazor requires at least version {{1}}.\r\n Please update the RGF Server Core to avoid unexpected behavior.";
+
+                _logger.LogWarning(incompatibilityMessageTemplate.Replace("\r\n", ""), CurrentRgfCoreVersion, RgfClientConfiguration.MinimumRgfCoreVersion);
+                await NotificationManager.RaiseEventAsync(new RgfUserMessageEventArgs(
+                    UserMessageType.Warning,
+                    string.Format(incompatibilityMessageTemplate.Replace("\r\n", "<br/>"),
+                    CurrentRgfCoreVersion,
+                    RgfClientConfiguration.MinimumRgfCoreVersion), "Incompatible RGF version detected"), this);
+            }
+            await BroadcastMessages(res.Result.Messages, this);
+        }
     }
 
     public void Dispose()

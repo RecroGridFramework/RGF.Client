@@ -277,7 +277,7 @@ internal class RgListHandler : IDisposable, IRgListHandler
             var list = new List<RgfDynamicDictionary>();
             if (Initialized)
             {
-                int page = PageSize.Value > 0 ? listParam.Skip / PageSize.Value : 0;
+                int page = PageSize.Value > 0 ? (listParam.Skip ?? 0) / PageSize.Value : 0;
                 if (!TryGetCacheData(page, out list))
                 {
                     listParam.Columns = UserColumns.ToArray();

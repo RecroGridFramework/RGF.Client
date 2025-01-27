@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Components.Authorization;
+﻿using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.WebAssembly.Authentication;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
@@ -23,6 +24,7 @@ internal class RecroSecService : IRecroSecService, IDisposable
     private readonly IRgfApiService _apiService;
     private readonly IServiceProvider _serviceProvider;
     private readonly RecroSecServiceOptions _options = new();
+    private readonly NavigationManager _navigationMaanger;
     private readonly AuthenticationStateProvider? _authenticationStateProvider;
 
     public RecroSecService(IConfiguration configuration, ILogger<RecroSecService> logger, IRgfApiService apiService, IServiceProvider serviceProvider)
@@ -30,6 +32,7 @@ internal class RecroSecService : IRecroSecService, IDisposable
         _logger = logger;
         _apiService = apiService;
         _serviceProvider = serviceProvider;
+        _navigationMaanger = serviceProvider.GetRequiredService<NavigationManager>();
         configuration.Bind("Recrovit:RecroGridFramework:RecroSec", _options);
         _authenticationStateProvider = serviceProvider.GetService<AuthenticationStateProvider>();
         if (_authenticationStateProvider != null)
@@ -155,6 +158,14 @@ internal class RecroSecService : IRecroSecService, IDisposable
                 if (!string.IsNullOrEmpty(resp.Result.Language))
                 {
                     await SetLangAsync(resp.Result.Language);
+                }
+                if (resp.Result.IsNewlyCreated)
+                {
+                    _ = Task.Run(async () =>
+                    {
+                        await Task.Delay(1000);
+                        _navigationMaanger.NavigateTo(_navigationMaanger.Uri, forceLoad: true);
+                    });
                 }
             }
         }

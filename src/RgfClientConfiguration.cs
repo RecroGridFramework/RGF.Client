@@ -12,7 +12,7 @@ public class RgfClientConfiguration
 {
     public static bool IsInitialized { get; internal set; } = false;
 
-    public static string AppRootPath { get; internal set; } = "/";
+    public static string AppRootPath { get; internal set; } = string.Empty;
 
     public static string Version => _version.Value;
 
@@ -28,13 +28,13 @@ public static class RgfClientConfigurationExtension
     public static IServiceCollection AddRgfServices(this IServiceCollection services, IConfiguration configuration, ILogger? logger = null)
     {
         var config = configuration.GetSection("Recrovit:RecroGridFramework");
-        ApiService.BaseAddress = config.GetValue<string>("API:BaseAddress", string.Empty)!;
+        ApiService.BaseAddress = config.GetValue<string>("API:BaseAddress", string.Empty)!.TrimEnd('/');
         var root = config.GetValue("AppRootPath", config.GetValue("AppRootUrl", ""));
         if (!string.IsNullOrEmpty(root))
         {
-            RgfClientConfiguration.AppRootPath = root.EndsWith('/') ? root : root + "/";
+            RgfClientConfiguration.AppRootPath = root.TrimEnd('/');
         }
-        logger?.LogInformation("AddRgfServices: AppRootPath={AppRootPath} ApiService.BaseAddress={BaseAddress}", RgfClientConfiguration.AppRootPath, ApiService.BaseAddress);
+        logger?.LogInformation("AddRgfServices: AppRootPath={AppRootPath}, ApiService.BaseAddress={BaseAddress}", RgfClientConfiguration.AppRootPath, ApiService.BaseAddress);
 
         if (string.IsNullOrEmpty(ApiService.BaseAddress))
         {

@@ -399,7 +399,7 @@ public class RgManager : IRgManager
         {
             if (res.Result.Success)
             {
-                await ToastManager.RaiseEventAsync(RgfToastEventArgs.RecreateToastWithStatus(toast, _recroDict.GetRgfUiString("Processed"), RgfToastType.Success), this);
+                await ToastManager.RaiseEventAsync(toast.RecreateAsSuccess(_recroDict.GetRgfUiString("Processed")), this);
             }
             if (res.Result != null && !res.Result.Success)
             {
@@ -471,7 +471,7 @@ public class RgManager : IRgManager
         {
             if (res.Result.Success)
             {
-                await ToastManager.RaiseEventAsync(RgfToastEventArgs.RecreateToastWithStatus(toast, _recroDict.GetRgfUiString("Processed"), RgfToastType.Success), this);
+                await ToastManager.RaiseEventAsync(toast.RecreateAsSuccess(_recroDict.GetRgfUiString("Processed")), this);
             }
             if (res.Result != null && !res.Result.Success)
             {

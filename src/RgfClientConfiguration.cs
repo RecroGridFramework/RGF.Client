@@ -55,6 +55,7 @@ public static class RgfClientConfigurationExtension
         services.AddScoped<IRecroSecService, RecroSecService>();
         services.AddScoped<IRecroDictService, RecroDictService>();
         services.AddScoped<IRgfMenuService, MenuService>();
+        services.AddTransient<IRgfProgressService, RgfProgressService>();
 
         return services;
     }

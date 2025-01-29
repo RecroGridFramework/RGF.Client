@@ -36,6 +36,8 @@ public class RgfProgressService : IRgfProgressService
     public async Task<string?> StartAsync(CancellationToken cancellationToken = default)
     {
         var uri = new Uri($"{ApiService.BaseAddress.TrimEnd('/')}{RgfSignalR.RgfProgressHubEndpoint}");
+        _logger.LogDebug("Starting SignalR connection to {Uri}", uri.AbsoluteUri);
+
         _hubConnection = new HubConnectionBuilder()
             .WithUrl(uri.AbsoluteUri)
             //.AddJsonProtocol(options => options.PayloadSerializerOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web) )
@@ -44,6 +46,8 @@ public class RgfProgressService : IRgfProgressService
         _hubConnection.On<RgfProgressArgs>(nameof(IRgfProgressHub.ReceiveProgress), (p) => OnProgressChanged?.Invoke(p));
 
         await _hubConnection.StartAsync(cancellationToken);
+
+        _logger.LogDebug("SignalR connection started: {ConnectionId}", _hubConnection.ConnectionId);
 
         return _hubConnection.ConnectionId;
     }

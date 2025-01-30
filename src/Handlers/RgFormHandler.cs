@@ -46,11 +46,14 @@ internal class RgFormHandler : IRgFormHandler
         {
             param.EntityKey = data;
         }
+
         var result = await _manager.GetFormAsync(param);
         if (result.Success || result.Messages != null)
         {
             await _manager.BroadcastMessages(result.Messages, this);
         }
+
+        _logger.LogDebug("Initialize => {Success}", result.Success);
         return result;
     }
 

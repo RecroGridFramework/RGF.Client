@@ -12,7 +12,8 @@ public enum RgfFormEventKind
     EntitySearch = 4,
     EntityDisplay = 5,
     ParametersSet = 6,//ParametersApplied
-    FormSaveStarted = 7
+    FormSaveStarted = 7,
+    FormItemsFirstRenderCompleted = 8
 }
 
 public class RgfFormEventArgs : EventArgs

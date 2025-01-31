@@ -18,7 +18,7 @@ public class ApiService : IRgfApiService
 
     public const string RgfAuthApiClientName = "RGF.API.AUTH";
 
-    public static string BaseAddress { get; set; } = default!;
+    public static string BaseAddress { get; set; } = string.Empty;
 
     public ApiService(IHttpClientFactory httpClientFactory, ILogger<ApiService> logger)
     {
@@ -43,7 +43,8 @@ public class ApiService : IRgfApiService
             {
                 httpClient.DefaultRequestHeaders.TryAddWithoutValidation(item.Key, item.Value);
             }
-            var uriBuilder = new UriBuilder(new Uri(httpClient.BaseAddress!, request.Uri)) { Query = request.Query };
+            var uri = new Uri($"{httpClient.BaseAddress!.ToString().TrimEnd('/')}/{request.Uri.TrimStart('/')}");
+            var uriBuilder = new UriBuilder(uri) { Query = request.Query };
             _logger.LogDebug("GetAsync => uri:{uri}", uriBuilder.Uri.PathAndQuery);
             var response = await httpClient.GetAsync(uriBuilder.Uri, request.CancellationToken);
             await GetResult(request, response, result);
@@ -73,7 +74,8 @@ public class ApiService : IRgfApiService
             {
                 httpClient.DefaultRequestHeaders.TryAddWithoutValidation(item.Key, item.Value);
             }
-            var response = await httpClient.PostAsync(request.Uri, request.Content, request.CancellationToken);
+            var uri = new Uri($"{httpClient.BaseAddress!.ToString().TrimEnd('/')}/{request.Uri.TrimStart('/')}");
+            var response = await httpClient.PostAsync(uri, request.Content, request.CancellationToken);
             await GetResult(request, response, result);
         }
         catch (Exception ex)

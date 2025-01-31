@@ -6,6 +6,8 @@ using Recrovit.RecroGridFramework.Abstraction.Extensions;
 using Recrovit.RecroGridFramework.Abstraction.Infrastructure.Security;
 using Recrovit.RecroGridFramework.Abstraction.Models;
 using Recrovit.RecroGridFramework.Client.Events;
+using Recrovit.RecroGridFramework.Client.Models;
+using Recrovit.RecroGridFramework.Client.Services;
 using System.Data;
 
 namespace Recrovit.RecroGridFramework.Client.Handlers;
@@ -44,7 +46,7 @@ public interface IRgListHandler
 
     Task<List<RgfDynamicDictionary>> GetDataRangeAsync(int startIndex, int endIndex);
 
-    Task<RgfResult<RgfCustomFunctionResult>> CallCustomFunctionAsync(string functionName, bool requireQueryParams = false, Dictionary<string, object>? customParams = null, RgfEntityKey? entityKey = null);
+    Task<RgfResult<RgfCustomFunctionResult>?> CallCustomFunctionAsync(RgfCustomFunctionContext request);
 
     RgfGridRequest CreateAggregateRequest(RgfAggregationSettings chartParam);
 
@@ -157,6 +159,16 @@ public static class IRgListHandlerExtensions
         }
         return list;
     }
+
+    [Obsolete("Use CallCustomFunctionAsync(RgfCustomFunctionContext request) instead")]
+    public static Task<RgfResult<RgfCustomFunctionResult>?> CallCustomFunctionAsync(this IRgListHandler handler, string functionName, bool requireQueryParams = false, Dictionary<string, object>? customParams = null, RgfEntityKey? entityKey = null)
+        => handler.CallCustomFunctionAsync(new RgfCustomFunctionContext()
+        {
+            FunctionName = functionName,
+            RequireQueryParams = requireQueryParams,
+            CustomParams = customParams,
+            EntityKey = entityKey
+        });
 }
 
 internal class RgListHandler : IDisposable, IRgListHandler
@@ -354,27 +366,82 @@ internal class RgListHandler : IDisposable, IRgListHandler
         }
     }
 
-    public async Task<RgfResult<RgfCustomFunctionResult>> CallCustomFunctionAsync(string functionName, bool requireQueryParams = false, Dictionary<string, object>? customParams = null, RgfEntityKey? entityKey = null)
+    public async Task<RgfResult<RgfCustomFunctionResult>?> CallCustomFunctionAsync(RgfCustomFunctionContext context)
     {
-        var param = _manager.CreateGridRequest((request) =>
+        IRgfProgressService? progressService = null;
+        try
         {
-            request.EntityName = EntityDesc.EntityName;
-            request.EntityKey = entityKey;
-            request.FunctionName = functionName;
-            if (entityKey == null && _manager.SelectedItems.Value.Count > 0)
+            if (context.Toast != null)
             {
-                request.SelectParam = new() { SelectedKeys = _manager.SelectedItems.Value.Values.ToArray() };
+                await _manager.ToastManager.RaiseEventAsync(context.Toast, this);
             }
-            if (requireQueryParams)
+
+            if (context.EnableProgressTracking && (context.ProgressChanged != null || context.Toast != null))
             {
-                request.ListParam = ListParam;
+                progressService = _manager.ServiceProvider.GetRequiredService<IRgfProgressService>();
+                if (context.ProgressChanged != null)
+                {
+                    progressService.OnProgressChanged += context.ProgressChanged;
+                }
+                else if (context.Toast != null)
+                {
+                    progressService.OnProgressChanged += (progress) =>
+                    {
+                        context.Toast = context.Toast.Recreate(progressType: progress.ProgressType, progressArgs: progress, delay: progress.ProgressType != RgfProgressType.Success ? 0 : null);
+                        _manager.ToastManager.RaiseEventAsync(context.Toast, this);
+                    };
+                }
+                await progressService.StartAsync();
             }
-            if (customParams != null)
+
+            var param = _manager.CreateGridRequest((gridRequest) =>
             {
-                request.CustomParams = customParams;
+                gridRequest.EntityName = EntityDesc.EntityName;
+                gridRequest.EntityKey = context.EntityKey;
+                gridRequest.FunctionName = context.FunctionName;
+                gridRequest.ClientConnectionId = progressService?.ConnectionId;
+                if (context.EntityKey == null && _manager.SelectedItems.Value.Count > 0)
+                {
+                    gridRequest.SelectParam = new() { SelectedKeys = _manager.SelectedItems.Value.Values.ToArray() };
+                }
+                if (context.RequireQueryParams)
+                {
+                    gridRequest.ListParam = ListParam;
+                }
+                if (context.CustomParams != null)
+                {
+                    gridRequest.CustomParams = context.CustomParams;
+                }
+            });
+            var result = await _manager.CallCustomFunctionAsync(param);
+            if (result != null)
+            {
+                await _manager.BroadcastMessages(result.Messages, this);
+                if (context.Toast?.ToastType == RgfToastType.Default)
+                {
+                    if (result.Success)
+                    {
+                        await _manager.ToastManager.RaiseEventAsync(context.Toast.RecreateAsSuccess(_recroDict.GetRgfUiString("Processed")), this);
+                    }
+                    else
+                    {
+                        await _manager.ToastManager.RaiseEventAsync(context.Toast.Recreate(RgfToastType.Warning), this);
+                    }
+                }
             }
-        });
-        return await _manager.CallCustomFunctionAsync(param);
+            else if (context.Toast != null)
+            {
+                await _manager.ToastManager.RaiseEventAsync(context.Toast.Recreate(RgfToastType.Error, delay: 10000), this);
+            }
+            return result;
+        }
+        finally
+        {
+            if (progressService != null)
+            {
+                await progressService.DisposeAsync();
+            }
+        }
     }
 
     public RgfGridRequest CreateAggregateRequest(RgfAggregationSettings aggregateParam)

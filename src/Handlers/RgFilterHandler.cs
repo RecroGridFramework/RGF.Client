@@ -64,7 +64,8 @@ internal class RgFilterHandler : IRgFilterHandler
     private RgfFilterProperty[]? _rgfFilterProperties = null;
     private string _jsonConditions = string.Empty;
     private readonly IRgManager _manager;
-    private List<RgfFilter.Condition>? _conditions;
+    private List<RgfFilter.Condition> _conditions = [];
+    private List<RgfFilter.Condition> _conditionsQuickFilter = [];
     private int _maxConditionId;
 
     public RgfFilterProperty[] RgfFilterProperties
@@ -86,12 +87,22 @@ internal class RgFilterHandler : IRgFilterHandler
     {
         get
         {
-            _conditions ??= [];
-            return _conditions;
+            if (_conditionsQuickFilter.Count == 0)
+            {
+                return _conditions;
+            }
+
+            var list = new List<RgfFilter.Condition>
+            {
+                new RgfFilter.Condition() { LogicalOperator = RgfFilter.LogicalOperator.And, Conditions = _conditions },
+                new RgfFilter.Condition() { LogicalOperator = RgfFilter.LogicalOperator.And, Conditions = _conditionsQuickFilter, IsQuickFilter = true }
+            };
+            return list;
         }
         set
         {
             _conditions = value;
+            _conditionsQuickFilter = [];
             _maxConditionId = InitClientId(new RgfFilter.Condition() { Conditions = _conditions }, 0);
         }
     }
@@ -124,7 +135,7 @@ internal class RgFilterHandler : IRgFilterHandler
         {
             condition = null;
         }
-        var quickFilter = Conditions.FirstOrDefault(e => e.IsQuickFilter && e.PropertyId == property.Id);
+        var quickFilter = _conditionsQuickFilter.FirstOrDefault(e => e.IsQuickFilter && e.PropertyId == property.Id);
         if (quickFilter == null && condition == null)
         {
             return;
@@ -132,7 +143,7 @@ internal class RgFilterHandler : IRgFilterHandler
 
         if (quickFilter != null && condition == null)
         {
-            Conditions.Remove(quickFilter);
+            _conditionsQuickFilter.Remove(quickFilter);
         }
         else
         {
@@ -146,7 +157,7 @@ internal class RgFilterHandler : IRgFilterHandler
                     QueryOperator = property.ClientDataType == ClientDataType.String ? RgfFilter.QueryOperator.Like : RgfFilter.QueryOperator.Equal,
                     IsQuickFilter = true
                 };
-                Conditions.Add(quickFilter);
+                _conditionsQuickFilter.Add(quickFilter);
             }
             quickFilter.Param1 = condition?.ToString();
         }
@@ -203,6 +214,10 @@ internal class RgFilterHandler : IRgFilterHandler
 
     private bool RemoveCondition(IList<RgfFilter.Condition> conditions, int clientId)
     {
+        if (clientId == 0)
+        {
+            return false;
+        }
         var condition = conditions.SingleOrDefault(e => e.ClientId == clientId);
         if (condition != null)
         {
@@ -245,6 +260,10 @@ internal class RgFilterHandler : IRgFilterHandler
 
     public void RemoveBracket(int clientId)
     {
+        if (clientId == 0)
+        {
+            return;
+        }
         int idx = FindCondition(Conditions, clientId, out var condition);
         if (idx != -1)
         {

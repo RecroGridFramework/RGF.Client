@@ -6,7 +6,7 @@ namespace Recrovit.RecroGridFramework.Client.Events;
 
 public enum RgfFormEventKind
 {
-    FormInitialized = 1,
+    FormDataInitialized = 1,
     Rendered = 2,
     ValidationRequested = 3,
     EntitySearch = 4,

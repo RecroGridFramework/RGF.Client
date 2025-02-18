@@ -1,10 +1,20 @@
-﻿using Recrovit.RecroGridFramework.Abstraction.Contracts.Services;
+﻿using Microsoft.Extensions.Logging;
+using Recrovit.RecroGridFramework.Abstraction.Contracts.Services;
 using Recrovit.RecroGridFramework.Abstraction.Infrastructure.Events;
+using Recrovit.RecroGridFramework.Client.Services;
 
 namespace Recrovit.RecroGridFramework.Client.Events;
 
 public class RgfEventDispatcher<TEvent, TArgs> where TEvent : notnull where TArgs : EventArgs
 {
+
+    public RgfEventDispatcher()
+    {
+        _logger = RgfLoggerFactory.GetLogger<RgfEventDispatcher<TEvent, TArgs>>();
+    }
+
+    private readonly ILogger? _logger;
+
     private Dictionary<TEvent, EventDispatcher<IRgfEventArgs<TArgs>>> _eventHandlers = [];
 
     private Dictionary<TEvent, EventDispatcher<IRgfEventArgs<TArgs>>> _defaultHandlers = [];
@@ -21,7 +31,7 @@ public class RgfEventDispatcher<TEvent, TArgs> where TEvent : notnull where TArg
         {
             if (!_defaultHandlers.TryGetValue(eventName, out handlers))
             {
-                handlers = new();
+                handlers = new(_logger);
                 _defaultHandlers[eventName] = handlers;
             }
         }
@@ -29,7 +39,7 @@ public class RgfEventDispatcher<TEvent, TArgs> where TEvent : notnull where TArg
         {
             if (!_eventHandlers.TryGetValue(eventName, out handlers))
             {
-                handlers = new();
+                handlers = new(_logger);
                 _eventHandlers.Add(eventName, handlers);
             }
         }
@@ -191,6 +201,8 @@ public class RgfEventDispatcher<TEvent, TArgs> where TEvent : notnull where TArg
 
     public async Task<bool> DispatchEventAsync(TEvent eventName, IRgfEventArgs<TArgs> args)
     {
+        _logger?.LogDebug("DispatchEvent: {eventName}, Sender: {senderType}", eventName, args.Sender?.GetType().Name);
+
         if (_eventHandlers.TryGetValue(eventName, out var handlers))
         {
             await handlers.InvokeAsync(args);

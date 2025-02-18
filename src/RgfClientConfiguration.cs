@@ -64,6 +64,8 @@ public static class RgfClientConfigurationExtension
     {
         if (!RgfClientConfiguration.IsInitialized)
         {
+            RgfLoggerFactory.Initialize(serviceProvider.GetRequiredService<ILoggerFactory>());
+
             if (clientSideRendering)
             {
                 var recroDict = serviceProvider.GetRequiredService<IRecroDictService>();

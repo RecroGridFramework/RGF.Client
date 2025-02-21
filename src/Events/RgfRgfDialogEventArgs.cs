@@ -6,6 +6,7 @@ public enum RgfDialogEventKind
     Close = 2,
     Destroy = 3,
     Refresh = 4,
+    Rendered = 5
 }
 
 public class RgfDialogEventArgs : EventArgs
@@ -15,5 +16,9 @@ public class RgfDialogEventArgs : EventArgs
         EventKind = eventKind;
     }
 
+    public static RgfDialogEventArgs CreateAfterRenderEvent(bool firstRender) => new RgfDialogEventArgs(RgfDialogEventKind.Rendered) { FirstRender = firstRender };
+
     public RgfDialogEventKind EventKind { get; }
+
+    public bool FirstRender { get; internal set; }
 }

@@ -85,12 +85,12 @@ public interface IRgListHandler
 
 public static class IRgListHandlerExtensions
 {
-    public static bool GetEntityKey(this IRgListHandler handler, RgfDynamicDictionary rowData, out RgfEntityKey? entityKey)
+    public static bool GetEntityKey(this IRgListHandler handler, RgfDynamicDictionary? rowData, out RgfEntityKey? entityKey)
     {
-        var rgparams = rowData.Get<Dictionary<string, object>>("__rgparams");
+        var rgparams = rowData?.Get<Dictionary<string, object>>("__rgparams");
         if (rgparams?.TryGetValue("keySign", out var k) == true)
         {
-            entityKey = new RgfEntityKey() { Keys = handler.GetEKey(rowData), Signature = k.ToString() };
+            entityKey = new RgfEntityKey() { Keys = handler.GetEKey(rowData!), Signature = k.ToString() };
             return true;
         }
         entityKey = null;
@@ -383,14 +383,23 @@ internal class RgListHandler : IDisposable, IRgListHandler
                 {
                     progressService.OnProgressChanged += context.ProgressChanged;
                 }
-                else if (context.Toast != null)
+                if (context.ProgressChangedAsync != null)
                 {
-                    progressService.OnProgressChanged += (progress) =>
-                    {
-                        context.Toast = context.Toast.Recreate(progressType: progress.ProgressType, progressArgs: progress, delay: progress.ProgressType != RgfProgressType.Success ? 0 : null);
-                        _manager.ToastManager.RaiseEventAsync(context.Toast, this);
-                    };
+                    progressService.OnProgressChangedAsync += context.ProgressChangedAsync;
                 }
+                progressService.OnProgressChangedAsync += async (instance, args) =>
+                {
+                    if (context.Toast != null)
+                    {
+                        context.Toast = context.Toast.Recreate(progressType: args.ProgressType, progressArgs: args, delay: args.ProgressType != RgfProgressType.Success ? 0 : null);
+                        await _manager.ToastManager.RaiseEventAsync(context.Toast, this);
+                        await _manager.BroadcastMessages(args.CoreMessages, this);
+                    }
+                    if (args.IsBackgroundTaskCompleted == true)
+                    {
+                        await instance.DisposeAsync();
+                    }
+                };
                 await progressService.StartAsync();
             }
 
@@ -416,16 +425,21 @@ internal class RgListHandler : IDisposable, IRgListHandler
             var result = await _manager.CallCustomFunctionAsync(param);
             if (result != null)
             {
+                if (progressService != null && result.Result.StartedInBackground)
+                {
+                    progressService.AddToBackgroundInstances();
+                    progressService = null;//prevent dispose
+                }
                 await _manager.BroadcastMessages(result.Messages, this);
                 if (context.Toast?.ToastType == RgfToastType.Default)
                 {
-                    if (result.Success)
-                    {
-                        await _manager.ToastManager.RaiseEventAsync(context.Toast.RecreateAsSuccess(_recroDict.GetRgfUiString("Processed")), this);
-                    }
-                    else
+                    if (!result.Success)
                     {
                         await _manager.ToastManager.RaiseEventAsync(context.Toast.Recreate(RgfToastType.Warning), this);
+                    }
+                    else if (!result.Result.StartedInBackground)
+                    {
+                        await _manager.ToastManager.RaiseEventAsync(context.Toast.RecreateAsSuccess(_recroDict.GetRgfUiString("Processed")), this);
                     }
                 }
             }

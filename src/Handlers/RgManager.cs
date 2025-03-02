@@ -123,8 +123,10 @@ public class RgManager : IRgManager
         _logger = serviceProvider.GetRequiredService<ILogger<RgManager>>();
         _recroDict = serviceProvider.GetRequiredService<IRecroDictService>();
         _recroSec = serviceProvider.GetRequiredService<IRecroSecService>();
-        NotificationManager = new RgfNotificationManager(serviceProvider);
-        ToastManager = serviceProvider.GetRequiredService<IRgfEventNotificationService>().GetNotificationManager(RgfToastEventArgs.NotificationManagerScope);
+
+        var notificationService = serviceProvider.GetRequiredService<IRgfEventNotificationService>();
+        NotificationManager = notificationService.GetNotificationManager(NotificationManagerScope);
+        ToastManager = notificationService.GetNotificationManager(RgfToastEventArgs.NotificationManagerScope);
     }
 
     public async Task<bool> InitializeAsync(RgfGridRequest request)
@@ -157,6 +159,8 @@ public class RgManager : IRgManager
     }
 
     public IServiceProvider ServiceProvider { get; }
+
+    private const string NotificationManagerScope = "CoreNotificationManager";
 
     public IRgfNotificationManager NotificationManager { get; }
 
@@ -605,29 +609,32 @@ public class RgManager : IRgManager
 
     public async Task BroadcastMessages(RgfCoreMessages messages, object sender)
     {
-        //TODO: error handle
-        if (messages != null)
+        if (messages == null)
         {
-            if (messages.Error != null)
+            return;
+        }
+
+        if (messages.Info != null)
+        {
+            foreach (var item in messages.Info)
             {
-                foreach (var item in messages.Error)
-                {
-                    await NotificationManager.RaiseEventAsync(new RgfUserMessageEventArgs(_recroDict, UserMessageType.Error, item.Value.Replace("\r\n", "<br/>")), sender);
-                }
+                await NotificationManager.RaiseEventAsync(new RgfUserMessageEventArgs(_recroDict, UserMessageType.Information, item.Value.Replace("\r\n", "<br/>")), sender);
             }
-            if (messages.Warning != null)
+        }
+
+        if (messages.Warning != null)
+        {
+            foreach (var item in messages.Warning)
             {
-                foreach (var item in messages.Warning)
-                {
-                    await NotificationManager.RaiseEventAsync(new RgfUserMessageEventArgs(_recroDict, UserMessageType.Warning, item.Value.Replace("\r\n", "<br/>")), sender);
-                }
+                await NotificationManager.RaiseEventAsync(new RgfUserMessageEventArgs(_recroDict, UserMessageType.Warning, item.Value.Replace("\r\n", "<br/>")), sender);
             }
-            if (messages.Info != null)
+        }
+
+        if (messages.Error != null)
+        {
+            foreach (var item in messages.Error)
             {
-                foreach (var item in messages.Info)
-                {
-                    await NotificationManager.RaiseEventAsync(new RgfUserMessageEventArgs(_recroDict, UserMessageType.Information, item.Value.Replace("\r\n", "<br/>")), sender);
-                }
+                await NotificationManager.RaiseEventAsync(new RgfUserMessageEventArgs(_recroDict, UserMessageType.Error, item.Value.Replace("\r\n", "<br/>")), sender);
             }
         }
     }

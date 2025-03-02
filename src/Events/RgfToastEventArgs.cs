@@ -49,7 +49,7 @@ public class RgfToastEventArgs : EventArgs
     public IRgfProgressArgs? ProgressArgs { get; set; }
 
     public Func<RgfToastEventArgs, MarkupString> OnRenderBody { get; set; } = (toast)
-        => new MarkupString(string.IsNullOrEmpty(toast.ProgressArgs?.Message) ? toast.Body : $"{toast.Body}<div>{toast.ProgressArgs.Message}</div>");
+        => new MarkupString(string.IsNullOrEmpty(toast.ProgressArgs?.Message) ? toast.Body : $"{toast.Body}<div class=\"progress-message\">{toast.ProgressArgs.Message}</div>");
 
     public Func<RgfToastEventArgs, MarkupString> OnRenderHeader { get; set; } = (toast) =>
     {

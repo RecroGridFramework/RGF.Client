@@ -109,7 +109,7 @@ internal class RgFilterHandler : IRgFilterHandler
 
     public List<RgfFilterSettings> PredefinedFilters { get; set; }
 
-    public bool IsColumnFiltered(IRgfProperty property, string? matchCriteria = null) => IsColumnFilteredRecursive(Conditions, property, matchCriteria);
+    public bool IsColumnFiltered(IRgfProperty property, string? matchCriteria = null) => _manager.ListHandler.IsFiltered && IsColumnFilteredRecursive(Conditions, property, matchCriteria);
 
     private bool IsColumnFilteredRecursive(IEnumerable<RgfFilter.Condition> conditions, IRgfProperty property, string? matchCriteria)
     {
@@ -405,20 +405,22 @@ internal class RgFilterHandler : IRgFilterHandler
 
     private static object? GetDefaultValue(RgfFilter.Condition condition, RgfFilterProperty property)
     {
-        if (property.ClientDataType == ClientDataType.String)
+        return property.ClientDataType switch
         {
-            switch (condition.QueryOperator)
+            ClientDataType.String => condition.QueryOperator switch
             {
-                case RgfFilter.QueryOperator.Equal:
-                case RgfFilter.QueryOperator.NotEqual:
-                case RgfFilter.QueryOperator.Like:
-                case RgfFilter.QueryOperator.NotLike:
-                case RgfFilter.QueryOperator.Interval:
-                case RgfFilter.QueryOperator.IntervalE:
-                    return string.Empty;
-            }
-        }
-        return null;
+                RgfFilter.QueryOperator.Equal or
+                RgfFilter.QueryOperator.NotEqual or
+                RgfFilter.QueryOperator.Like or
+                RgfFilter.QueryOperator.NotLike or
+                RgfFilter.QueryOperator.Interval or
+                RgfFilter.QueryOperator.IntervalE => string.Empty,
+                _ => null
+            },
+            ClientDataType.Boolean => false,
+            ClientDataType.DateTime => DateTime.Today,
+            _ => null
+        };
     }
 
     public async Task SetFilterAsync(IEnumerable<RgfFilter.Condition>? conditions, int? sqlTimeout)

@@ -20,7 +20,7 @@ public class RgfClientConfiguration
 
     public static Dictionary<string, string> ClientVersions { get; } = [];
 
-    public static Version MinimumRgfCoreVersion = new Version(8, 14, 0);//RGF.Core MinVersion
+    public static Version MinimumRgfCoreVersion = new Version(8, 15, 0);//RGF.Core MinVersion
 }
 
 public static class RgfClientConfigurationExtension
@@ -64,6 +64,8 @@ public static class RgfClientConfigurationExtension
     {
         if (!RgfClientConfiguration.IsInitialized)
         {
+            RgfLoggerFactory.Initialize(serviceProvider.GetRequiredService<ILoggerFactory>());
+
             if (clientSideRendering)
             {
                 var recroDict = serviceProvider.GetRequiredService<IRecroDictService>();

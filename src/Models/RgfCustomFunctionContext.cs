@@ -1,5 +1,6 @@
 ﻿using Recrovit.RecroGridFramework.Abstraction.Models;
 using Recrovit.RecroGridFramework.Client.Events;
+using Recrovit.RecroGridFramework.Client.Services;
 
 namespace Recrovit.RecroGridFramework.Client.Models;
 
@@ -17,5 +18,7 @@ public class RgfCustomFunctionContext
 
     public bool EnableProgressTracking { get; set; }
 
-    public Action<IRgfProgressArgs>? ProgressChanged;
+    public Action<IRgfProgressService, IRgfProgressArgs>? ProgressChanged;
+
+    public Func<IRgfProgressService, IRgfProgressArgs, Task>? ProgressChangedAsync;
 }

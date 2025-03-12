@@ -574,20 +574,21 @@ public class RgManager : IRgManager
 
     public virtual async Task<int> DeleteSelectedItemsAsync()
     {
-        var entityKeys = SelectedItems.Value.Values.ToArray();
+        var items = SelectedItems.Value.OrderBy(e => e.Key).ToArray();
         int count = 0;
-        foreach (var key in entityKeys)
+        foreach (var item in items)
         {
-            var res = await DeleteDataAsync(key);
+            var res = await DeleteDataAsync(item.Value);
             if (!res.Success)
             {
                 break;
             }
+            await SelectedItems.ModifySilentlyAsync(SelectedItems.Value.Where(e => e.Key != item.Key).ToDictionary(e => e.Key - 1, e => e.Value));
             count++;
         }
         if (count > 0)
         {
-            if (count == entityKeys.Count())
+            if (count == items.Count())
             {
                 var msg = string.Format(_recroDict.GetRgfUiString("DelSuccess"), count);
                 var toast = RgfToastEventArgs.CreateActionEvent(_recroDict.GetRgfUiString("Delete"), EntityDesc.Title, msg, RgfToastType.Success);
@@ -596,7 +597,7 @@ public class RgManager : IRgManager
             else
             {
                 var messages = new RgfCoreMessages();
-                var msg = string.Format(_recroDict.GetRgfUiString("DelIncomplete"), count, entityKeys.Count() - count);
+                var msg = string.Format(_recroDict.GetRgfUiString("DelIncomplete"), count, items.Count() - count);
                 messages.Error = new() { { "BulkDelete", msg } };
                 await BroadcastMessages(messages, this);
             }
@@ -682,6 +683,7 @@ public class RgManager : IRgManager
                     if (ListHandler.GetEntityKey(arg.Args.Data, out var key) && key?.IsEmpty == false)
                     {
                         await DeleteDataAsync(key);
+                        SelectedItems.Value = new();
                     }
                 }
                 break;

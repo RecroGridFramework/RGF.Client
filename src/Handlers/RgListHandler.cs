@@ -569,7 +569,7 @@ internal class RgListHandler : IDisposable, IRgListHandler
 
     public void ReplaceColumnWidth(string alias, int width)
     {
-        _logger.LogDebug("ReplaceColumnWidth: {alias}:{width}", alias, width);
+        _logger.LogDebug("ReplaceColumnWidth | {alias}:{width}", alias, width);
         var col = EntityDesc.Properties.SingleOrDefault(x => x.Alias == alias);
         if (col != null)
         {
@@ -579,7 +579,7 @@ internal class RgListHandler : IDisposable, IRgListHandler
 
     public async Task MoveColumnAsync(int oldIndex, int newIndex, bool refresh = true)
     {
-        _logger.LogDebug("MoveColumn: {old}->{new}", oldIndex, newIndex);
+        _logger.LogDebug("MoveColumn | {old}->{new}", oldIndex, newIndex);
         var list = EntityDesc.SortedVisibleColumns.ToList();
         if (oldIndex != newIndex &&
             oldIndex > 0 && oldIndex <= list.Count &&
@@ -648,7 +648,7 @@ internal class RgListHandler : IDisposable, IRgListHandler
         int first = (ActivePage.Value - 1) * PageSize.Value;
         if (idx < first || idx >= first + PageSize.Value)
         {
-            _logger.LogDebug("EnsureVisible: {index}", absoluteRowIndex);
+            _logger.LogDebug("EnsureVisible | Index:{index}", absoluteRowIndex);
             int page = idx / PageSize.Value + 1;
             await ActivePage.SetValueAsync(page);
             first = (ActivePage.Value - 1) * PageSize.Value;

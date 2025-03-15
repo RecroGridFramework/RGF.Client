@@ -303,7 +303,7 @@ public class RgManager : IRgManager
 
     public async Task<RgfResult<RgfGridResult>> GetRecroGridAsync(RgfGridRequest request)
     {
-        _logger.LogDebug("GetRecroGridAsync: {EntityName}", request.EntityName);
+        _logger.LogDebug("GetRecroGridAsync | EntityName:{EntityName}", request.EntityName);
         var res = await _rgfService.GetRecroGridAsync(request);
         if (!res.Success)
         {
@@ -329,7 +329,7 @@ public class RgManager : IRgManager
 
     public async Task<RgfResult<RgfGridResult>> GetAggregateDataAsync(RgfGridRequest request)
     {
-        _logger.LogDebug("GetAggregateDataAsync: {EntityName}", request.EntityName);
+        _logger.LogDebug("GetAggregateDataAsync | EntityName:{EntityName}", request.EntityName);
         var res = await _rgfService.GetAggregatedDataAsync(request);
         if (!res.Success)
         {
@@ -642,7 +642,7 @@ public class RgManager : IRgManager
 
     public virtual async Task OnToolbarCommandAsync(IRgfEventArgs<RgfToolbarEventArgs> arg)
     {
-        _logger.LogDebug("OnToolbarCommand: {cmd}", arg.Args.EventKind);
+        _logger.LogDebug("OnToolbarCommand | Event:{cmd}", arg.Args.EventKind);
         switch (arg.Args.EventKind)
         {
             case RgfToolbarEventKind.Refresh:
@@ -689,19 +689,19 @@ public class RgManager : IRgManager
                 break;
 
             case RgfToolbarEventKind.Select:
-                OnSelect();
+                await OnSelect();
                 break;
         }
     }
 
-    protected virtual void OnSelect()
+    protected virtual async Task OnSelect()
     {
         if (SelectParam != null && SelectedItems.Value.Count == 1)
         {
             var data = SelectedItems.Value.Single();
             if (data.Value?.IsEmpty == false)
             {
-                _logger.LogDebug("OnSelect: {key}", data.Value.Keys.FirstOrDefault().Value);
+                _logger.LogDebug("OnSelect | Key:{key}", data.Value.Keys.FirstOrDefault().Value);
                 SelectParam.SelectedKeys = [data.Value];
             }
             if (SelectParam.Filter.Keys.Any())
@@ -717,7 +717,7 @@ public class RgManager : IRgManager
                     }
                 }
             }
-            SelectParam.ItemSelectedEvent.InvokeAsync(new CancelEventArgs());
+            await SelectParam.ItemSelectedEvent.InvokeAsync(new CancelEventArgs());
         }
     }
 

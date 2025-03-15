@@ -130,7 +130,7 @@ internal class RgfNotificationManager : IRgfNotificationManager
 
         public async Task RaiseEventAsync(IRgfEventArgs<TArgs> args)
         {
-            _logger.LogDebug("{EventType}: {Args}", typeof(TArgs), args?.Args?.ToString());
+            _logger.LogDebug("RaiseEvent | {EventType}:{Args}", typeof(TArgs), args?.Args?.ToString());
             foreach (var observer in _observers)
             {
                 await observer.OnNextAsync(args!);

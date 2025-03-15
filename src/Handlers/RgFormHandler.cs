@@ -53,7 +53,7 @@ internal class RgFormHandler : IRgFormHandler
             await _manager.BroadcastMessages(result.Messages, this);
         }
 
-        _logger.LogDebug("Initialize => {Success}", result.Success);
+        _logger.LogDebug("Initialize | Success:{Success}", result.Success);
         return result;
     }
 
@@ -166,7 +166,7 @@ internal class RgFormHandler : IRgFormHandler
 
     public async Task<RgfResult<RgfFormResult>> SaveAsync(FormViewData formViewData, bool refresh = false)
     {
-        _logger.LogDebug("SaveAsync");
+        _logger.LogDebug("Save");
         var param = _manager.CreateGridRequest((request) =>
         {
             request.EntityKey = formViewData.EntityKey;

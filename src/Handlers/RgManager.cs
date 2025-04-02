@@ -303,7 +303,7 @@ public class RgManager : IRgManager
 
     public async Task<RgfResult<RgfGridResult>> GetRecroGridAsync(RgfGridRequest request)
     {
-        _logger.LogDebug("GetRecroGridAsync: {EntityName}", request.EntityName);
+        _logger.LogDebug("GetRecroGridAsync | EntityName:{EntityName}", request.EntityName);
         var res = await _rgfService.GetRecroGridAsync(request);
         if (!res.Success)
         {
@@ -329,7 +329,7 @@ public class RgManager : IRgManager
 
     public async Task<RgfResult<RgfGridResult>> GetAggregateDataAsync(RgfGridRequest request)
     {
-        _logger.LogDebug("GetAggregateDataAsync: {EntityName}", request.EntityName);
+        _logger.LogDebug("GetAggregateDataAsync | EntityName:{EntityName}", request.EntityName);
         var res = await _rgfService.GetAggregatedDataAsync(request);
         if (!res.Success)
         {
@@ -574,20 +574,21 @@ public class RgManager : IRgManager
 
     public virtual async Task<int> DeleteSelectedItemsAsync()
     {
-        var entityKeys = SelectedItems.Value.Values.ToArray();
+        var items = SelectedItems.Value.OrderBy(e => e.Key).ToArray();
         int count = 0;
-        foreach (var key in entityKeys)
+        foreach (var item in items)
         {
-            var res = await DeleteDataAsync(key);
+            var res = await DeleteDataAsync(item.Value);
             if (!res.Success)
             {
                 break;
             }
+            await SelectedItems.ModifySilentlyAsync(SelectedItems.Value.Where(e => e.Key != item.Key).ToDictionary(e => e.Key - 1, e => e.Value));
             count++;
         }
         if (count > 0)
         {
-            if (count == entityKeys.Count())
+            if (count == items.Count())
             {
                 var msg = string.Format(_recroDict.GetRgfUiString("DelSuccess"), count);
                 var toast = RgfToastEventArgs.CreateActionEvent(_recroDict.GetRgfUiString("Delete"), EntityDesc.Title, msg, RgfToastType.Success);
@@ -596,7 +597,7 @@ public class RgManager : IRgManager
             else
             {
                 var messages = new RgfCoreMessages();
-                var msg = string.Format(_recroDict.GetRgfUiString("DelIncomplete"), count, entityKeys.Count() - count);
+                var msg = string.Format(_recroDict.GetRgfUiString("DelIncomplete"), count, items.Count() - count);
                 messages.Error = new() { { "BulkDelete", msg } };
                 await BroadcastMessages(messages, this);
             }
@@ -641,7 +642,7 @@ public class RgManager : IRgManager
 
     public virtual async Task OnToolbarCommandAsync(IRgfEventArgs<RgfToolbarEventArgs> arg)
     {
-        _logger.LogDebug("OnToolbarCommand: {cmd}", arg.Args.EventKind);
+        _logger.LogDebug("OnToolbarCommand | Event:{cmd}", arg.Args.EventKind);
         switch (arg.Args.EventKind)
         {
             case RgfToolbarEventKind.Refresh:
@@ -682,24 +683,25 @@ public class RgManager : IRgManager
                     if (ListHandler.GetEntityKey(arg.Args.Data, out var key) && key?.IsEmpty == false)
                     {
                         await DeleteDataAsync(key);
+                        SelectedItems.Value = new();
                     }
                 }
                 break;
 
             case RgfToolbarEventKind.Select:
-                OnSelect();
+                await OnSelect();
                 break;
         }
     }
 
-    protected virtual void OnSelect()
+    protected virtual async Task OnSelect()
     {
         if (SelectParam != null && SelectedItems.Value.Count == 1)
         {
             var data = SelectedItems.Value.Single();
             if (data.Value?.IsEmpty == false)
             {
-                _logger.LogDebug("OnSelect: {key}", data.Value.Keys.FirstOrDefault().Value);
+                _logger.LogDebug("OnSelect | Key:{key}", data.Value.Keys.FirstOrDefault().Value);
                 SelectParam.SelectedKeys = [data.Value];
             }
             if (SelectParam.Filter.Keys.Any())
@@ -715,7 +717,7 @@ public class RgManager : IRgManager
                     }
                 }
             }
-            SelectParam.ItemSelectedEvent.InvokeAsync(new CancelEventArgs());
+            await SelectParam.ItemSelectedEvent.InvokeAsync(new CancelEventArgs());
         }
     }
 

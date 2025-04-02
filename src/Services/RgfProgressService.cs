@@ -83,7 +83,7 @@ public class RgfProgressService : IRgfProgressService
             _backgroundProgressInstances.Remove(this);
         }
 
-        if (_hubConnection == null)
+        if (_hubConnection?.ConnectionId == null)
         {
             return Task.CompletedTask;
         }
@@ -123,6 +123,7 @@ public class RgfProgressService : IRgfProgressService
             await StopAsync();
             _logger.LogDebug("Disposing SignalR connection");
             await _hubConnection.DisposeAsync();
+            _hubConnection = null;
         }
     }
 }

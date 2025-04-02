@@ -294,7 +294,7 @@ internal class RgFilterHandler : IRgFilterHandler
             };
 
             newCondition.Param1 = GetDefaultValue(newCondition, prop);
-            logger.LogDebug("AddCondition: {ColTitle}", prop.ColTitle);
+            logger.LogDebug("AddCondition | {ColTitle}", prop.ColTitle);
 
             int idx = FindCondition(Conditions, clientId, out var condition);
             if (idx != -1)
@@ -395,7 +395,7 @@ internal class RgFilterHandler : IRgFilterHandler
                 {
                     condition.Param1 = GetDefaultValue(condition, prop);
                 }
-                logger.LogDebug("ChangeQueryOperator: {QueryOperator}", newOperator);
+                logger.LogDebug("ChangeQueryOperator | {QueryOperator}", newOperator);
                 condition.QueryOperator = newOperator;
                 return true;
             }

@@ -201,7 +201,7 @@ public class RgfEventDispatcher<TEvent, TArgs> where TEvent : notnull where TArg
 
     public async Task<bool> DispatchEventAsync(TEvent eventName, IRgfEventArgs<TArgs> args)
     {
-        _logger?.LogDebug("DispatchEvent: {eventName}, Sender: {senderType}", eventName, args.Sender?.GetType().Name);
+        _logger?.LogDebug("DispatchEvent | EventName:{eventName}, Sender:{senderType}", eventName, args.Sender?.GetType().Name);
 
         if (_eventHandlers.TryGetValue(eventName, out var handlers))
         {

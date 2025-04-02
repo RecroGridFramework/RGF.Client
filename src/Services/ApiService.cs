@@ -45,7 +45,7 @@ public class ApiService : IRgfApiService
             }
             var uri = new Uri($"{httpClient.BaseAddress!.ToString().TrimEnd('/')}/{request.Uri.TrimStart('/')}");
             var uriBuilder = new UriBuilder(uri) { Query = request.Query };
-            _logger.LogDebug("GetAsync => uri:{uri}", uriBuilder.Uri.PathAndQuery);
+            _logger.LogDebug("GetAsync | uri:{uri}", uriBuilder.Uri.PathAndQuery);
             var response = await httpClient.GetAsync(uriBuilder.Uri, request.CancellationToken);
             await GetResult(request, response, result);
         }

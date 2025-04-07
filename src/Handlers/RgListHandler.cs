@@ -845,6 +845,7 @@ internal class RgListHandler : IDisposable, IRgListHandler
             {
                 EntityDesc = rgResult.EntityDesc;
                 ListParam.SQLTimeout = EntityDesc.Options.TryGetIntValue("RGO_SQLTimeout");
+                ListParam.Columns = UserColumns.ToArray();
             }
             if (init)
             {

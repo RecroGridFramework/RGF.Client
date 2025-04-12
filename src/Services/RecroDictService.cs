@@ -11,12 +11,13 @@ internal class RecroDictService : IRecroDictService
 {
     private readonly ILogger _logger;
     private readonly IRgfApiService _apiService;
+    private readonly IRecroSecService _recroSecServiec;
 
-    public RecroDictService(IConfiguration configuration, ILogger<RecroDictService> logger, IRgfApiService apiService)
+    public RecroDictService(IConfiguration configuration, ILogger<RecroDictService> logger, IRgfApiService apiService, IRecroSecService recroSecServiec)
     {
         _logger = logger;
         _apiService = apiService;
-
+        _recroSecServiec = recroSecServiec;
         var config = configuration.GetSection("Recrovit:RecroGridFramework:RecroDict");
         DefaultLanguage = (config.GetValue<string>("DefaultLanguage", "eng") ?? "eng").ToLower();
         Languages = new Dictionary<string, string>() { { DefaultLanguage, DefaultLanguage } };
@@ -25,7 +26,7 @@ internal class RecroDictService : IRecroDictService
 
     public async Task InitializeAsync(string? language = null)
     {
-        language ??= DefaultLanguage;
+        language ??= UserLanguage;
         if (!IsInitialized || language != _uiLanguage)
         {
             var dict = await GetDictionaryAsync("RGF.Language", language, false);
@@ -42,6 +43,8 @@ internal class RecroDictService : IRecroDictService
 
     public string DefaultLanguage { get; private set; }
 
+    public string UserLanguage => _recroSecServiec.UserLanguage;
+
     public Dictionary<string, string> Languages { get; private set; }
 
     public bool IsInitialized { get; private set; }
@@ -56,7 +59,7 @@ internal class RecroDictService : IRecroDictService
     {
         if (string.IsNullOrEmpty(language))
         {
-            language = DefaultLanguage;
+            language = UserLanguage;
         }
         var dictCache = DictionaryCache.GetOrAdd(language, new MemoryCache(new MemoryCacheOptions()));
         var dict = await dictCache.GetOrCreateAsync(scope, async entry =>
@@ -73,13 +76,13 @@ internal class RecroDictService : IRecroDictService
         return dict!;
     }
 
-    public string GetRgfUiString(string stringId)
+    public string GetRgfUiString(string resourceKey)
     {
         if (!IsInitialized)
         {
             return "RecroDict has not been initialized";
         }
-        return IRecroDictServiceExtension.GetItem(_rgfUi, stringId, $"RGF.UI.{stringId}");
+        return IRecroDictServiceExtension.GetItem(_rgfUi, resourceKey, $"RGF.UI.{resourceKey}");
     }
 }
 

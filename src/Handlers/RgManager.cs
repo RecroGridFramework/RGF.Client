@@ -682,8 +682,11 @@ public class RgManager : IRgManager
                 {
                     if (ListHandler.GetEntityKey(arg.Args.Data, out var key) && key?.IsEmpty == false)
                     {
-                        await DeleteDataAsync(key);
-                        SelectedItems.Value = new();
+                        var res = await DeleteDataAsync(key);
+                        if (res.Success)
+                        {
+                            SelectedItems.Value = [];
+                        }
                     }
                 }
                 break;

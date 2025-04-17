@@ -113,7 +113,8 @@ public static class RgfToastEventArgsExtensions
             title ?? toast.Title,
             body ?? toast.Body,
             toastType ?? ConvertToRgfToastType(progressType) ?? toast.ToastType,
-            delay, status ?? toast.Status,
+            delay,
+            status ?? toast.Status,
             progressArgs);
     }
 

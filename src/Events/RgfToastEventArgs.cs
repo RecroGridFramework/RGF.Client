@@ -36,7 +36,11 @@ public class RgfToastEventArgs : EventArgs
 
     public string Body { get; init; }
 
+    public string? Footer { get; init; }
+
     public MarkupString MarkupBody => OnRenderBody(this);
+
+    public MarkupString MarkupFooter => OnRenderFooter(this);
 
     public MarkupString MarkupHeader => OnRenderHeader(this);
 
@@ -48,10 +52,12 @@ public class RgfToastEventArgs : EventArgs
 
     public IRgfProgressArgs? ProgressArgs { get; set; }
 
-    public Func<RgfToastEventArgs, MarkupString> OnRenderBody { get; set; } = (toast)
+    public virtual Func<RgfToastEventArgs, MarkupString> OnRenderBody { get; set; } = (toast)
         => new MarkupString(string.IsNullOrEmpty(toast.ProgressArgs?.Message) ? toast.Body : $"{toast.Body}<div class=\"progress-message\">{toast.ProgressArgs.Message}</div>");
 
-    public Func<RgfToastEventArgs, MarkupString> OnRenderHeader { get; set; } = (toast) =>
+    public virtual Func<RgfToastEventArgs, MarkupString> OnRenderFooter { get; set; } = (toast) => new MarkupString(toast.ProgressArgs?.Footer ?? toast.Footer ?? "");
+
+    public virtual Func<RgfToastEventArgs, MarkupString> OnRenderHeader { get; set; } = (toast) =>
     {
         var title = string.IsNullOrWhiteSpace(toast.Status) ? toast.Title : string.IsNullOrWhiteSpace(toast.Title) ? toast.Status : $"{toast.Status} - {toast.Title}";
         var progress = string.Empty;
@@ -113,7 +119,8 @@ public static class RgfToastEventArgsExtensions
             title ?? toast.Title,
             body ?? toast.Body,
             toastType ?? ConvertToRgfToastType(progressType) ?? toast.ToastType,
-            delay, status ?? toast.Status,
+            delay,
+            status ?? toast.Status,
             progressArgs);
     }
 

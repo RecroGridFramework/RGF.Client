@@ -391,8 +391,15 @@ internal class RgListHandler : IDisposable, IRgListHandler
                 {
                     if (context.Toast != null)
                     {
-                        context.Toast = context.Toast.Recreate(progressType: args.ProgressType, progressArgs: args, delay: args.ProgressType != RgfProgressType.Success ? 0 : null);
-                        await _manager.ToastManager.RaiseEventAsync(context.Toast, this);
+                        if (args.IsBackgroundTaskCompleted == true && string.IsNullOrEmpty(args.Message))
+                        {
+                            context.Toast.Remove();
+                        }
+                        else
+                        {
+                            context.Toast = context.Toast.Recreate(progressType: args.ProgressType, progressArgs: args, delay: args.ProgressType != RgfProgressType.Success ? 0 : null);
+                            await _manager.ToastManager.RaiseEventAsync(context.Toast, this);
+                        }
                         await _manager.BroadcastMessages(args.CoreMessages, this);
                     }
                     if (args.IsBackgroundTaskCompleted == true)
@@ -845,6 +852,7 @@ internal class RgListHandler : IDisposable, IRgListHandler
             {
                 EntityDesc = rgResult.EntityDesc;
                 ListParam.SQLTimeout = EntityDesc.Options.TryGetIntValue("RGO_SQLTimeout");
+                ListParam.Columns = UserColumns.ToArray();
             }
             if (init)
             {

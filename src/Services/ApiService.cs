@@ -134,6 +134,8 @@ public static class IRgfServiceExtension
 
     public static Task<IRgfApiResponse<RgfResult<RgfGridResult>>> GetRecroGridAsync(this IRgfApiService service, RgfGridRequest param) => service.PostAsync<RgfResult<RgfGridResult>, RgfGridRequest>($"/rgf/api/entity/RecroGrid", param);
 
+    public static Task<IRgfApiResponse<RgfResult<RgfEntity>>> GetEntityDescAsync(this IRgfApiService service, RgfGridRequest param) => service.PostAsync<RgfResult<RgfEntity>, RgfGridRequest>($"/rgf/api/entity/entitydesc", param);
+
     public static Task<IRgfApiResponse<RgfResult<RgfGridResult>>> GetAggregatedDataAsync(this IRgfApiService service, RgfGridRequest param) => service.PostAsync<RgfResult<RgfGridResult>, RgfGridRequest>($"/rgf/api/entity/Aggregation", param);
 
     public static Task<IRgfApiResponse<RgfResult<RgfFilterResult>>> GetFilterAsync(this IRgfApiService service, RgfGridRequest param) => service.PostAsync<RgfResult<RgfFilterResult>, RgfGridRequest>($"/rgf/api/entity/Filter", param);

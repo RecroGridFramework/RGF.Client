@@ -77,6 +77,8 @@ public interface IRgManager : IDisposable
 
     Task<RgfResult<RgfGridResult>> GetRecroGridAsync(RgfGridRequest request);
 
+    Task<RgfResult<RgfEntity>> GetEntityDescAsync(RgfGridRequest request);
+
     Task<RgfResult<RgfGridResult>> GetAggregateDataAsync(RgfGridRequest request);
 
     Task<RgfResult<RgfCustomFunctionResult>> CallCustomFunctionAsync(RgfGridRequest request);
@@ -326,6 +328,18 @@ public class RgManager : IRgManager
         }
         return res.Result;
     }
+
+    public async Task<RgfResult<RgfEntity>> GetEntityDescAsync(RgfGridRequest request)
+    {
+        _logger.LogDebug("GetEntityDescAsync | EntityName:{EntityName}", request.EntityName);
+        var res = await _rgfService.GetEntityDescAsync(request);
+        if (!res.Success)
+        {
+            await NotificationManager.RaiseEventAsync(new RgfUserMessageEventArgs(_recroDict, UserMessageType.Error, res.ErrorMessage), this);
+        }
+        return res.Result;
+    }
+
 
     public async Task<RgfResult<RgfGridResult>> GetAggregateDataAsync(RgfGridRequest request)
     {

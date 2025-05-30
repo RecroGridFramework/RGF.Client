@@ -61,7 +61,7 @@ internal class RgFilterHandler : IRgFilterHandler
 
     private readonly RgfEntity _entity;
     private RgfFilter _filter;
-    private RgfFilterProperty[]? _rgfFilterProperties = null;
+    private IEnumerable<RgfFilterProperty>? _rgfFilterProperties = null;
     private string _jsonConditions = string.Empty;
     private readonly IRgManager _manager;
     private List<RgfFilter.Condition> _conditions = [];
@@ -75,11 +75,11 @@ internal class RgFilterHandler : IRgFilterHandler
             if (_rgfFilterProperties == null)
             {
                 _rgfFilterProperties = _entity.Properties
+                    .Where(e => e.ColPos > 0 || true != e.Options?.ContainsKey("RGO_AutoExternal") || IsColumnFilteredRecursive(_conditions, e))
                     .Join(_filter.Columns, prop => prop.Alias, col => col.Alias, (prop, col) => new RgfFilterProperty(prop, col), StringComparer.OrdinalIgnoreCase)
-                    .OrderBy(e => e.ColTitle)
-                    .ToArray();
+                    .OrderBy(e => e.ColTitle);
             }
-            return _rgfFilterProperties;
+            return [.. _rgfFilterProperties];
         }
     }
 
@@ -111,7 +111,7 @@ internal class RgFilterHandler : IRgFilterHandler
 
     public bool IsColumnFiltered(IRgfProperty property, string? matchCriteria = null) => _manager.ListHandler.IsFiltered && IsColumnFilteredRecursive(Conditions, property, matchCriteria);
 
-    private bool IsColumnFilteredRecursive(IEnumerable<RgfFilter.Condition> conditions, IRgfProperty property, string? matchCriteria)
+    private bool IsColumnFilteredRecursive(IEnumerable<RgfFilter.Condition> conditions, IRgfProperty property, string? matchCriteria = null)
     {
         foreach (var item in conditions)
         {
@@ -505,6 +505,8 @@ public class RgfFilterProperty : IRgfProperty
     public string ClientName { get => _property.ClientName; set { _property.ClientName = value; } }
 
     public string BaseEntityNameVersion { get => _property.BaseEntityNameVersion; set { _property.BaseEntityNameVersion = value; } }
+
+    public string BaseEntityPropertyName { get => _property.BaseEntityPropertyName; set { _property.BaseEntityPropertyName = value; } }
 
     public int ColPos { get => _property.ColPos; set { _property.ColPos = value; } }
 

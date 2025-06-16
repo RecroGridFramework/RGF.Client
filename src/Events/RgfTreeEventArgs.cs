@@ -32,7 +32,7 @@ public interface IRgfTreeNodeParameters
  
     bool IsExpanded { get; set; }
 
-    RgfProperty? Property { get; set; }
+    IRgfProperty? Property { get; set; }
 
     RgfDynamicDictionary RowData { get; set; }
 

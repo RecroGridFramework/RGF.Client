@@ -66,7 +66,7 @@ public interface IRgListHandler
 
     Task<bool> SetSortAsync(Dictionary<string, int> sort);
 
-    Task<bool> SetVisibleColumnsAsync(IEnumerable<GridColumnSettings> columnSettings);
+    Task<bool> SetVisibleColumnsAsync(IEnumerable<RgfGridColumnSettings> columnSettings);
 
     void ReplaceColumnWidth(int index, int width);
 
@@ -75,6 +75,8 @@ public interface IRgListHandler
     Task MoveColumnAsync(int oldIndex, int newIndex, bool refresh = true);
 
     IEnumerable<int> UserColumns { get; }
+
+    IEnumerable<IRgfProperty> SortedVisibleColumns { get; }
 
     RgfGridSettings GetGridSettings();
 
@@ -264,13 +266,34 @@ internal class RgListHandler : IDisposable, IRgListHandler
 
     public ObservableProperty<int> ActivePage { get; private set; } = new(1, nameof(ActivePage));
 
-    public string[] DataColumns => _dataColumns.ToArray();
+    public string[] DataColumns => [.. _dataColumns];
 
     public bool IsFiltered => ListParam.UserFilter?.Any() == true;
 
     public ObservableProperty<bool> IsLoading { get; private set; } = new(false, nameof(ListDataSource));
 
-    public IEnumerable<int> UserColumns => EntityDesc.SortedVisibleColumns.Select(e => e.Id);
+    public IEnumerable<int> UserColumns => SortedVisibleColumns.Select(e => e.Id);
+
+    public IEnumerable<IRgfProperty> SortedVisibleColumns
+    {
+        get
+        {
+            foreach (var item in _externalColumns)
+            {
+                var prop = EntityDesc.Properties.FirstOrDefault(e => e.GetAutoExternalId() == item.Property.Id);
+                if (prop != null)
+                {
+                    item.ExternalSettings.PropertyId = prop.Id;
+                    prop.ColPos = item.ColPosOrNull ?? 0;
+                    prop.ColWidth = item.ColWidthOrNull ?? 0;
+                }
+            }
+            return EntityDesc.Properties
+                .Where(e => e.Readable && e.ColPos > 0 && e.ListType != PropertyListType.RecroGrid)
+                .OrderBy(e => e.ColPos)
+                .ThenBy(e => e.ColTitle);
+        }
+    }
 
     public ObservableProperty<List<RgfDynamicDictionary>> ListDataSource { get; private set; } = new(new List<RgfDynamicDictionary>(), nameof(ListDataSource));
 
@@ -292,7 +315,7 @@ internal class RgListHandler : IDisposable, IRgListHandler
                 int page = PageSize.Value > 0 ? (listParam.Skip ?? 0) / PageSize.Value : 0;
                 if (!TryGetCacheData(page, out list))
                 {
-                    listParam.Columns = UserColumns.ToArray();
+                    listParam.Columns = [.. UserColumns];
                     var param = _manager.CreateGridRequest((request) =>
                     {
                         request.EntityName = EntityDesc.EntityName;
@@ -517,16 +540,17 @@ internal class RgListHandler : IDisposable, IRgListHandler
         return changed;
     }
 
-    public async Task<bool> SetVisibleColumnsAsync(IEnumerable<GridColumnSettings> columnSettings)
+    public async Task<bool> SetVisibleColumnsAsync(IEnumerable<RgfGridColumnSettings> columnSettings)
     {
         bool reload = false;
         bool changed = false;
-        foreach (var col in columnSettings)
+        _externalColumns = [];
+        foreach (var settings in columnSettings)
         {
-            var prop = EntityDesc.Properties.SingleOrDefault(e => e.Id == col.Property.Id);
+            var prop = EntityDesc.Properties.SingleOrDefault(e => e.Id == settings.Property.Id);
             if (prop != null)
             {
-                var pos = col.ColPos ?? 0;
+                var pos = settings.ColPosOrNull ?? 0;
                 if (prop.ColPos != pos)
                 {
                     changed = true;
@@ -536,34 +560,97 @@ internal class RgListHandler : IDisposable, IRgListHandler
                     }
                     prop.ColPos = pos;
                 }
-                var width = col.ColWidth ?? 0;
+                var width = settings.ColWidthOrNull ?? 0;
                 if (prop.ColWidth != width)
                 {
                     changed = true;
                     prop.ColWidth = width;
                 }
             }
+            changed = External(settings.RelatedEntityColumnSettings) || changed;
         }
+
+        var oldExternalColumns = ListParam.ExternalColumns ?? [];
+        ListParam.ExternalColumns = [];
+        if (!changed)
+        {
+            changed = oldExternalColumns.Count != _externalColumns.Count || oldExternalColumns.Any(old => !_externalColumns.Any(e => e.ExternalSettings?.FullPath == old.FullPath)) == true;
+        }
+        foreach (var ext in _externalColumns)
+        {
+            var col = oldExternalColumns.FirstOrDefault(e => e.FullPath == ext.ExternalSettings.FullPath);
+            if (col == null)
+            {
+                reload = true;
+            }
+            ListParam.ExternalColumns.Add(ext.ExternalSettings);
+        }
+        if (ListParam.ExternalColumns.Count == 0)
+        {
+            ListParam.ExternalColumns = null;
+        }
+
         int idx = 1;
-        foreach (var item in EntityDesc.SortedVisibleColumns)
+        var visibleColumns = SortedVisibleColumns.ToArray();
+        foreach (var item in visibleColumns)
         {
             item.ColPos = idx++;
+            var p = _externalColumns.FirstOrDefault(e => e.ExternalSettings?.PropertyId == item.Id);
+            if (p != null)
+            {
+                p.ColPosOrNull = p.Property.ColPos = item.ColPos;
+            }
         }
+
         if (reload)
         {
             await RefreshDataAsync();
+            return true;
         }
-        else if (changed)
+
+        if (changed)
         {
             await GetDataListAsync();
         }
-        return changed || reload;
+        return changed;
+
+        bool External(IEnumerable<RgfGridColumnSettings> settings)
+        {
+            bool changed = false;
+            foreach (var item in settings)
+            {
+                if (!changed)
+                {
+                    changed = item.Property.ColPos != (item.ColPosOrNull ?? 0) || item.Property.ColWidth != (item.ColWidthOrNull ?? 0);
+                }
+
+                item.Property.ColPos = item.ColPosOrNull ?? 0;
+                item.Property.ColWidth = item.ColWidthOrNull ?? 0;
+                item.ExternalSettings.ColPos = item.Property.ColPos;
+
+                var prop = EntityDesc.Properties.FirstOrDefault(e => e.GetAutoExternalId() == item.Id);
+                if (prop != null)
+                {
+                    item.ExternalSettings.PropertyId = prop.Id;
+                    prop.ColPos = item.Property.ColPos;
+                    prop.ColWidth = item.Property.ColWidth;
+                }
+
+                if (item.ColPosOrNull > 0)
+                {
+                    _externalColumns.Add(item);
+                }
+
+                changed = External(item.RelatedEntityColumnSettings) || changed;
+            }
+            return changed;
+        }
     }
 
     public void ReplaceColumnWidth(int index, int width)
     {
         int idx = 1;
-        foreach (var col in EntityDesc.SortedVisibleColumns)
+        foreach (var col in SortedVisibleColumns)
         {
             if (idx == index)
             {
@@ -581,25 +668,36 @@ internal class RgListHandler : IDisposable, IRgListHandler
         if (col != null)
         {
             col.ColWidth = width;
+            var ext = _externalColumns.FirstOrDefault(e => e.ExternalSettings?.PropertyId == col.Id);
+            if (ext != null)
+            {
+                ext.ColWidthOrNull = ext.Property.ColWidth = width;
+            }
         }
     }
 
     public async Task MoveColumnAsync(int oldIndex, int newIndex, bool refresh = true)
     {
         _logger.LogDebug("MoveColumn | {old}->{new}", oldIndex, newIndex);
-        var list = EntityDesc.SortedVisibleColumns.ToList();
+        var list = SortedVisibleColumns.ToList();
         if (oldIndex != newIndex &&
-            oldIndex > 0 && oldIndex <= list.Count &&
-            newIndex > 0 && newIndex <= list.Count)
+            oldIndex >= 1 && oldIndex <= list.Count &&
+            newIndex >= 1 && newIndex <= list.Count)
         {
             var item = list[oldIndex - 1];
             list.RemoveAt(oldIndex - 1);
             list.Insert(newIndex - 1, item);
             for (int i = 0; i < list.Count;)
             {
-                list[i].ColPos = ++i;
+                item = list[i];
+                item.ColPos = ++i;
+                var p = _externalColumns.FirstOrDefault(e => e.ExternalSettings?.PropertyId == item.Id);
+                if (p != null)
+                {
+                    p.ColPosOrNull = p.Property.ColPos = item.ColPos;
+                }
             }
-            ListParam.Columns = UserColumns.ToArray();
+            ListParam.Columns = [.. UserColumns];
             if (refresh)
             {
                 await GetDataListAsync();
@@ -688,7 +786,7 @@ internal class RgListHandler : IDisposable, IRgListHandler
     {
         RgfGridSettings settings = new()
         {
-            ColumnSettings = EntityDesc.SortedVisibleColumns.Select(e => new RgfColumnSettings(e)).ToArray(),
+            ColumnSettings = SortedVisibleColumns.Select(e => new RgfColumnSettings(e)).ToArray(),
             Conditions = ListParam.UserFilter,
             Sort = ListParam.Sort,
             PageSize = PageSize.Value,
@@ -701,6 +799,7 @@ internal class RgListHandler : IDisposable, IRgListHandler
     private readonly IRgManager _manager;
     private readonly IRecroDictService _recroDict;
     private RgfEntity? _entityDesc;
+    private List<RgfGridColumnSettings> _externalColumns = [];
 
     private DataCache _dataCache { get; set; } = new DataCache(0);
 
@@ -850,9 +949,11 @@ internal class RgListHandler : IDisposable, IRgListHandler
             var rgResult = result.Result;
             if (rgResult.EntityDesc != null)
             {
+                _logger.LogDebug("Replacing EntityDesc | {entityName}", rgResult.EntityDesc.EntityName);
                 EntityDesc = rgResult.EntityDesc;
+                _externalColumns = [];
                 ListParam.SQLTimeout = EntityDesc.Options.TryGetIntValue("RGO_SQLTimeout");
-                ListParam.Columns = UserColumns.ToArray();
+                ListParam.Columns = [.. UserColumns];
             }
             if (init)
             {

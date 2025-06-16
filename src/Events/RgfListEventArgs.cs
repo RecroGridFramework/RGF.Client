@@ -12,7 +12,7 @@ public enum RgfListEventKind
 
 public class RgfListEventArgs : EventArgs
 {
-    public RgfListEventArgs(RgfListEventKind eventKind, ComponentBase? gridComponent, RgfDynamicDictionary? data = null, IEnumerable<RgfProperty>? properties = null)
+    public RgfListEventArgs(RgfListEventKind eventKind, ComponentBase? gridComponent, RgfDynamicDictionary? data = null, IEnumerable<IRgfProperty>? properties = null)
     {
         EventKind = eventKind;
         BaseGridComponent = gridComponent;
@@ -28,7 +28,7 @@ public class RgfListEventArgs : EventArgs
 
     public RgfDynamicDictionary? Data { get; }
 
-    public IEnumerable<RgfProperty>? Properties { get; }
+    public IEnumerable<IRgfProperty>? Properties { get; }
 
     public bool FirstRender { get; internal set; }
 }

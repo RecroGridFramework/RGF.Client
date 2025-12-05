@@ -99,7 +99,7 @@ public interface IRgManager : IDisposable
 
     Task<int> DeleteSelectedItemsAsync();
 
-    Task BroadcastMessages(RgfCoreMessages messages, object sender);
+    Task BroadcastMessages(RgfCoreMessages messages, object sender, bool clearAfterBroadcast = true);
 
     Task OnToolbarCommandAsync(IRgfEventArgs<RgfToolbarEventArgs> arg);
 
@@ -622,7 +622,7 @@ public class RgManager : IRgManager
 
     #endregion
 
-    public async Task BroadcastMessages(RgfCoreMessages messages, object sender)
+    public async Task BroadcastMessages(RgfCoreMessages messages, object sender, bool clearAfterBroadcast = true)
     {
         if (messages == null)
         {
@@ -635,6 +635,10 @@ public class RgManager : IRgManager
             {
                 await NotificationManager.RaiseEventAsync(new RgfUserMessageEventArgs(_recroDict, UserMessageType.Information, item.Value.Replace("\r\n", "<br/>")), sender);
             }
+            if (clearAfterBroadcast)
+            {
+                messages.Info.Clear();
+            }
         }
 
         if (messages.Warning != null)
@@ -643,6 +647,10 @@ public class RgManager : IRgManager
             {
                 await NotificationManager.RaiseEventAsync(new RgfUserMessageEventArgs(_recroDict, UserMessageType.Warning, item.Value.Replace("\r\n", "<br/>")), sender);
             }
+            if (clearAfterBroadcast)
+            {
+                messages.Warning.Clear();
+            }
         }
 
         if (messages.Error != null)
@@ -650,6 +658,10 @@ public class RgManager : IRgManager
             foreach (var item in messages.Error)
             {
                 await NotificationManager.RaiseEventAsync(new RgfUserMessageEventArgs(_recroDict, UserMessageType.Error, item.Value.Replace("\r\n", "<br/>")), sender);
+            }
+            if (clearAfterBroadcast)
+            {
+                messages.Error.Clear();
             }
         }
     }

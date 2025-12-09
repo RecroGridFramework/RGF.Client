@@ -20,7 +20,7 @@ public class RgfClientConfiguration
 
     public static Dictionary<string, string> ClientVersions { get; } = [];
 
-    public static Version MinimumRgfCoreVersion = new Version(8, 18, 0);//RGF.Core MinVersion
+    public static Version MinimumRgfCoreVersion = new Version(10, 0, 0);//RGF.Core MinVersion
 }
 
 public static class RgfClientConfigurationExtension

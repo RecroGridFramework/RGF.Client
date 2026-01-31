@@ -148,12 +148,16 @@ public static class IRgListHandlerExtensions
         return new KeyValuePair<int, RgfEntityKey>(idx, entityKey ?? new());
     }
 
+    [Obsolete("Use MenuEventDispatcher instead")]
     public static List<RgfDynamicDictionary> GetSelectedRowsData(this IRgListHandler handler, Dictionary<int, RgfEntityKey> selectedItems)
+        => handler.GetRowsByAbsoluteIndexes(selectedItems.Keys);
+
+    public static List<RgfDynamicDictionary> GetRowsByAbsoluteIndexes(this IRgListHandler handler, IEnumerable<int> absoluteIndexes)
     {
         var list = new List<RgfDynamicDictionary>();
-        foreach (var item in selectedItems)
+        foreach (var idx in absoluteIndexes)
         {
-            var rowData = handler.GetRowData(item.Key);
+            var rowData = handler.GetRowData(idx);
             if (rowData != null)
             {
                 list.Add(rowData);

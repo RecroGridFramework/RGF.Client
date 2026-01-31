@@ -110,7 +110,7 @@ public interface IRgManager : IDisposable
 
 public static class IRgManagerExtensions
 {
-    public static List<RgfDynamicDictionary> GetSelectedRowsData(this IRgManager manager) => manager.ListHandler.GetSelectedRowsData(manager.SelectedItems.Value);
+    public static List<RgfDynamicDictionary> GetSelectedRowsData(this IRgManager manager) => manager.ListHandler.GetRowsByAbsoluteIndexes(manager.SelectedItems.Value.Select(e => e.Key));
 
     public static bool ValidFormKeyExists(this IRgManager manager) => manager.FormViewKey?.Value?.EntityKey.IsEmpty == false;
 }

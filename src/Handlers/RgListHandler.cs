@@ -424,8 +424,17 @@ internal class RgListHandler : IDisposable, IRgListHandler
                         }
                         else
                         {
-                            context.Toast = context.Toast.Recreate(progressType: args.ProgressType, progressArgs: args, delay: args.ProgressType != RgfProgressType.Success ? 0 : null);
-                            await _manager.ToastManager.RaiseEventAsync(context.Toast, this);
+                            RgfToastEventArgs toast;
+                            if (args.ProgressType == RgfProgressType.Info || args.ProgressType == RgfProgressType.Warning)
+                            {
+                                toast = new RgfToastEventArgs(context.Toast.Title, args.Message, args.ProgressType == RgfProgressType.Info ? RgfToastType.Info : RgfToastType.Warning, delay: 0);
+                            }
+                            else
+                            {
+                                context.Toast = context.Toast.Recreate(progressType: args.ProgressType, progressArgs: args, delay: args.ProgressType != RgfProgressType.Success ? 0 : null);
+                                toast = context.Toast;
+                            }
+                            await _manager.ToastManager.RaiseEventAsync(toast, this);
                         }
                         await _manager.BroadcastMessages(args.CoreMessages, this);
                     }

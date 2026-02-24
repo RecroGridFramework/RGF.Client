@@ -587,7 +587,19 @@ internal class RgListHandler : IDisposable, IRgListHandler
         ListParam.ExternalColumns = [];
         if (!changed)
         {
-            changed = oldExternalColumns.Count != _externalColumns.Count || oldExternalColumns.Any(old => !_externalColumns.Any(e => e.ExternalSettings?.FullPath == old.FullPath)) == true;
+            if (oldExternalColumns.Count != _externalColumns.Count)
+            {
+                changed = true;
+            }
+            else
+            {
+                var oldPaths = new HashSet<string>(oldExternalColumns.Select(e => e.FullPath ?? string.Empty), StringComparer.Ordinal);
+                var newPaths = new HashSet<string>(_externalColumns.Select(e => e.ExternalSettings?.FullPath ?? string.Empty), StringComparer.Ordinal);
+                if (!oldPaths.SetEquals(newPaths))
+                {
+                    changed = true;
+                }
+            }
         }
         foreach (var ext in _externalColumns)
         {

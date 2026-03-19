@@ -89,6 +89,7 @@ public class ApiService : IRgfApiService
     private async Task GetResult<ResultType>(IRgfApiRequest request, HttpResponseMessage response, ApiResponse<ResultType> result) where ResultType : class
     {
         result.StatusCode = response.StatusCode;
+        result.ReasonPhrase = response.ReasonPhrase;
         if (response.IsSuccessStatusCode)
         {
             object? body;

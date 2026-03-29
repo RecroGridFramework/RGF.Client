@@ -15,6 +15,12 @@ public class RgfClientConfiguration
 
     public static string AppRootPath { get; internal set; } = string.Empty;
 
+    public static string ExternalApiBaseAddress { get; internal set; } = string.Empty;
+
+    public static string BrowserApiBaseAddress { get; internal set; } = string.Empty;
+
+    public static RgfApiAuthMode ApiAuthMode { get; internal set; } = RgfApiAuthMode.None;
+
     public static string Version => _version.Value;
 
     private static readonly Lazy<string> _version = new Lazy<string>(() => Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyFileVersionAttribute>()!.Version);
@@ -26,20 +32,30 @@ public class RgfClientConfiguration
 
 public static class RgfClientConfigurationExtension
 {
-    public static IServiceCollection AddRgfServices(this IServiceCollection services, IConfiguration configuration, ILogger? logger = null)
+    public static IServiceCollection AddRgfServices(this IServiceCollection services, IConfiguration configuration, ILogger? logger = null,
+        RgfApiAuthMode authMode = RgfApiAuthMode.None, string? browserBaseAddress = null)
     {
         var config = configuration.GetSection("Recrovit:RecroGridFramework");
-        ApiService.BaseAddress = config.GetValue<string>("API:BaseAddress", string.Empty)!.TrimEnd('/');
+        var externalBaseAddress = config.GetValue<string>("API:BaseAddress", string.Empty)!.TrimEnd('/');
+        var configuredBrowserBaseAddress = browserBaseAddress ?? config.GetValue<string>("API:BrowserBaseAddress", string.Empty);
+        var effectiveBrowserBaseAddress = string.IsNullOrWhiteSpace(configuredBrowserBaseAddress) ? externalBaseAddress : configuredBrowserBaseAddress.TrimEnd('/');
         var root = config.GetValue("AppRootPath", config.GetValue("AppRootUrl", ""));
         if (!string.IsNullOrEmpty(root))
         {
             RgfClientConfiguration.AppRootPath = root.TrimEnd('/');
         }
-        logger?.LogInformation("AddRgfServices: AppRootPath={AppRootPath}, ApiService.BaseAddress={BaseAddress}", RgfClientConfiguration.AppRootPath, ApiService.BaseAddress);
+        ApiService.ExternalBaseAddress = externalBaseAddress;
+        ApiService.BaseAddress = effectiveBrowserBaseAddress;
+        RgfClientConfiguration.ExternalApiBaseAddress = externalBaseAddress;
+        RgfClientConfiguration.BrowserApiBaseAddress = effectiveBrowserBaseAddress;
+        RgfClientConfiguration.ApiAuthMode = authMode;
+
+        logger?.LogInformation("AddRgfServices: AppRootPath={AppRootPath}, BrowserApiBaseAddress={BrowserApiBaseAddress}, ExternalApiBaseAddress={ExternalApiBaseAddress}, ApiAuthMode={ApiAuthMode}",
+            RgfClientConfiguration.AppRootPath, RgfClientConfiguration.BrowserApiBaseAddress, RgfClientConfiguration.ExternalApiBaseAddress, RgfClientConfiguration.ApiAuthMode);
 
         if (string.IsNullOrEmpty(ApiService.BaseAddress))
         {
-            const string msg = "The 'Recrovit:RecroGridFramework:API:BaseAddress' configuration setting is missing or invalid.";
+            const string msg = "The 'Recrovit:RecroGridFramework:API:BaseAddress' or 'Recrovit:RecroGridFramework:API:BrowserBaseAddress' configuration setting is missing or invalid.";
             logger?.LogCritical(msg);
             throw new InvalidOperationException(msg);
         }

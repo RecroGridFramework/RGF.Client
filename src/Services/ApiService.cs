@@ -20,6 +20,8 @@ public class ApiService : IRgfApiService
 
     public static string BaseAddress { get; set; } = string.Empty;
 
+    public static string ExternalBaseAddress { get; set; } = string.Empty;
+
     public ApiService(IHttpClientFactory httpClientFactory, ILogger<ApiService> logger)
     {
         _httpClientFactory = httpClientFactory;
@@ -31,7 +33,7 @@ public class ApiService : IRgfApiService
         var result = new ApiResponse<ResultType>() { Success = false };
         try
         {
-            using var httpClient = _httpClientFactory.CreateClient(request.AuthClient ? RgfAuthApiClientName : RgfApiClientName);
+            using var httpClient = _httpClientFactory.CreateClient(GetClientName(request));
             if (request.AdditionalHeaders != null)
             {
                 foreach (var item in request.AdditionalHeaders)
@@ -62,7 +64,7 @@ public class ApiService : IRgfApiService
         var result = new ApiResponse<ResultType>() { Success = false };
         try
         {
-            using var httpClient = _httpClientFactory.CreateClient(request.AuthClient ? RgfAuthApiClientName : RgfApiClientName);
+            using var httpClient = _httpClientFactory.CreateClient(GetClientName(request));
             if (request.AdditionalHeaders != null)
             {
                 foreach (var item in request.AdditionalHeaders)
@@ -124,6 +126,18 @@ public class ApiService : IRgfApiService
         {
             result.ErrorMessage = response.StatusCode.ToString();
         }
+    }
+
+    private static string GetClientName(IRgfApiRequest request)
+    {
+        if (!request.AuthClient)
+        {
+            return RgfApiClientName;
+        }
+
+        return RgfClientConfiguration.ApiAuthMode == RgfApiAuthMode.WasmBearer
+            ? RgfAuthApiClientName
+            : RgfApiClientName;
     }
 }
 

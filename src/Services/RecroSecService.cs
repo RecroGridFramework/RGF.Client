@@ -1,11 +1,11 @@
 ﻿using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
-using Microsoft.AspNetCore.Components.WebAssembly.Authentication;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Recrovit.RecroGridFramework.Abstraction.Contracts.Services;
+using Recrovit.RecroGridFramework.Abstraction.Infrastructure.API;
 using Recrovit.RecroGridFramework.Abstraction.Infrastructure.Events;
 using Recrovit.RecroGridFramework.Abstraction.Infrastructure.Security;
 using System.Data;
@@ -23,15 +23,17 @@ internal class RecroSecService : IRecroSecService, IDisposable
     private readonly ILogger _logger;
     private readonly IRgfApiService _apiService;
     private readonly IServiceProvider _serviceProvider;
+    private readonly IRgfAccessTokenAccessor _accessTokenAccessor;
     private readonly RecroSecServiceOptions _options = new();
     private readonly NavigationManager _navigationMaanger;
     private readonly AuthenticationStateProvider? _authenticationStateProvider;
 
-    public RecroSecService(IConfiguration configuration, ILogger<RecroSecService> logger, IRgfApiService apiService, IServiceProvider serviceProvider)
+    public RecroSecService(IConfiguration configuration, ILogger<RecroSecService> logger, IRgfApiService apiService, IServiceProvider serviceProvider, IRgfAccessTokenAccessor accessTokenAccessor)
     {
         _logger = logger;
         _apiService = apiService;
         _serviceProvider = serviceProvider;
+        _accessTokenAccessor = accessTokenAccessor;
         _navigationMaanger = serviceProvider.GetRequiredService<NavigationManager>();
         configuration.Bind("Recrovit:RecroGridFramework:RecroSec", _options);
         _authenticationStateProvider = serviceProvider.GetService<AuthenticationStateProvider>();
@@ -100,16 +102,7 @@ internal class RecroSecService : IRecroSecService, IDisposable
 
     public ClaimsPrincipal CurrentUser { get; private set; } = new();
 
-    public async Task<string?> GetAccessTokenAsync()
-    {
-        var tokenProvider = _serviceProvider.GetRequiredService<IAccessTokenProvider>();
-        var tokenResult = await tokenProvider.RequestAccessToken();
-        if (tokenResult.TryGetToken(out var token))
-        {
-            return token.Value;
-        }
-        return null;
-    }
+    public Task<string?> GetAccessTokenAsync() => _accessTokenAccessor.GetAccessTokenAsync();
 
     public List<string> RoleClaim
     {

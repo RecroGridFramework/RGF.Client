@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Recrovit.RecroGridFramework.Abstraction.Contracts.Constants;
 using Recrovit.RecroGridFramework.Abstraction.Contracts.Services;
+using Recrovit.RecroGridFramework.Abstraction.Infrastructure.API;
 using Recrovit.RecroGridFramework.Client.Services;
 using System.Reflection;
 
@@ -49,8 +50,13 @@ public static class RgfClientConfigurationExtension
         {
             httpClient.BaseAddress = new Uri(ApiService.BaseAddress);
         });
+        services.AddHttpClient(ApiService.RgfAuthApiClientName, httpClient =>
+        {
+            httpClient.BaseAddress = new Uri(ApiService.BaseAddress);
+        });
 
         services.AddSingleton<IRgfApiService, ApiService>();
+        services.AddScoped<IRgfAccessTokenAccessor, NoOpRgfAccessTokenAccessor>();
         services.AddScoped<IRgfEventNotificationService, RgfEventNotificationService>();
         services.AddScoped<IRecroSecService, RecroSecService>();
         services.AddScoped<IRecroDictService, RecroDictService>();

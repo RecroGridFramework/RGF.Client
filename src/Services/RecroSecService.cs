@@ -5,9 +5,9 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Recrovit.RecroGridFramework.Abstraction.Contracts.Services;
-using Recrovit.RecroGridFramework.Abstraction.Infrastructure.API;
 using Recrovit.RecroGridFramework.Abstraction.Infrastructure.Events;
 using Recrovit.RecroGridFramework.Abstraction.Infrastructure.Security;
+using Recrovit.RecroGridFramework.Client.Handlers;
 using System.Data;
 using System.Security.Claims;
 

@@ -4,6 +4,7 @@ using Recrovit.RecroGridFramework.Abstraction.Contracts.Services;
 using Recrovit.RecroGridFramework.Abstraction.Infrastructure.API;
 using Recrovit.RecroGridFramework.Abstraction.Infrastructure.Security;
 using Recrovit.RecroGridFramework.Abstraction.Models;
+using System.Net;
 using System.Text.Json;
 
 namespace Recrovit.RecroGridFramework.Client.Services;
@@ -62,6 +63,7 @@ public class ApiService : IRgfApiService
     public async Task<IRgfApiResponse<ResultType>> PostAsync<ResultType>(IRgfApiRequest request) where ResultType : class
     {
         var result = new ApiResponse<ResultType>() { Success = false };
+        HttpResponseMessage response;
         try
         {
             using var httpClient = _httpClientFactory.CreateClient(GetClientName(request));
@@ -77,7 +79,7 @@ public class ApiService : IRgfApiService
                 httpClient.DefaultRequestHeaders.TryAddWithoutValidation(item.Key, item.Value);
             }
             var uri = new Uri($"{httpClient.BaseAddress!.ToString().TrimEnd('/')}/{request.Uri.TrimStart('/')}");
-            var response = await httpClient.PostAsync(uri, request.Content, request.CancellationToken);
+            response = await httpClient.PostAsync(uri, request.Content, request.CancellationToken);
             await GetResult(request, response, result);
         }
         catch (Exception ex)
@@ -92,6 +94,13 @@ public class ApiService : IRgfApiService
     {
         result.StatusCode = response.StatusCode;
         result.ReasonPhrase = response.ReasonPhrase;
+        if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
+        {
+            result.ErrorMessage = CreateAuthErrorMessage(response);
+            result.Success = false;
+            return;
+        }
+
         if (response.IsSuccessStatusCode)
         {
             object? body;
@@ -126,6 +135,16 @@ public class ApiService : IRgfApiService
         {
             result.ErrorMessage = response.StatusCode.ToString();
         }
+    }
+
+    private static string CreateAuthErrorMessage(HttpResponseMessage response)
+    {
+        return response.StatusCode switch
+        {
+            HttpStatusCode.Unauthorized => "Authentication is required or the current session has expired.",
+            HttpStatusCode.Forbidden => "The current user is not authorized to access this resource.",
+            _ => response.StatusCode.ToString()
+        };
     }
 
     private static string GetClientName(IRgfApiRequest request)

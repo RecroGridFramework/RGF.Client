@@ -27,6 +27,7 @@ internal class RecroSecService : IRecroSecService, IDisposable
     private readonly RecroSecServiceOptions _options = new();
     private readonly NavigationManager _navigationMaanger;
     private readonly AuthenticationStateProvider? _authenticationStateProvider;
+    private Task? _authenticationStateInitializationTask;
 
     public RecroSecService(IConfiguration configuration, ILogger<RecroSecService> logger, IRgfApiService apiService, IServiceProvider serviceProvider, IRgfAccessTokenAccessor accessTokenAccessor)
     {
@@ -40,7 +41,7 @@ internal class RecroSecService : IRecroSecService, IDisposable
         if (_authenticationStateProvider != null)
         {
             _authenticationStateProvider.AuthenticationStateChanged += OnAuthenticationStateChanged;
-            OnAuthenticationStateChanged(_authenticationStateProvider.GetAuthenticationStateAsync());
+            EnsureAuthenticationStateInitializationStarted();
         }
     }
 
@@ -79,6 +80,7 @@ internal class RecroSecService : IRecroSecService, IDisposable
 
     public async Task<string?> SetUserLanguageAsync(string language)
     {
+        await EnsureAuthenticationStateInitializedAsync();
         string? prev = _userLanguage;
         if (language != null && !language.Equals(UserLanguage, StringComparison.OrdinalIgnoreCase))
         {
@@ -130,37 +132,60 @@ internal class RecroSecService : IRecroSecService, IDisposable
         }
     }
 
-    private async void OnAuthenticationStateChanged(Task<AuthenticationState> stateTask)
+    private void OnAuthenticationStateChanged(Task<AuthenticationState> stateTask) => _authenticationStateInitializationTask = RefreshAuthenticationStateAsync(stateTask);
+
+    private void EnsureAuthenticationStateInitializationStarted()
     {
-        IsAdmin = false;
-        Roles = [];
-        var authenticationState = await stateTask;
-        CurrentUser = authenticationState.User ?? new();
-        //var roles = CurrentUser.FindFirst("role")?.Value ?? CurrentUser.FindFirst("roles")?.Value : "?";
-        _logger.LogInformation("IsAuthenticated:{IsAuthenticated}, UserName:{UserName}, RoleClaims:{Roles}", IsAuthenticated, UserName, string.Join(", ", RoleClaim));
-        if (IsAuthenticated)
+        if (_authenticationStateProvider != null && _authenticationStateInitializationTask == null)
         {
-            var resp = await _apiService.GetUserStateAsync();
-            if (resp.Success && resp.Result.IsValid)
+            _authenticationStateInitializationTask = RefreshAuthenticationStateAsync(_authenticationStateProvider.GetAuthenticationStateAsync());
+        }
+    }
+
+    private Task EnsureAuthenticationStateInitializedAsync()
+    {
+        EnsureAuthenticationStateInitializationStarted();
+        return _authenticationStateInitializationTask ?? Task.CompletedTask;
+    }
+
+    private async Task RefreshAuthenticationStateAsync(Task<AuthenticationState> stateTask)
+    {
+        try
+        {
+            IsAdmin = false;
+            Roles = [];
+            var authenticationState = await stateTask;
+            CurrentUser = authenticationState.User ?? new();
+            //var roles = CurrentUser.FindFirst("role")?.Value ?? CurrentUser.FindFirst("roles")?.Value : "?";
+            _logger.LogInformation("IsAuthenticated:{IsAuthenticated}, UserName:{UserName}, RoleClaims:{Roles}", IsAuthenticated, UserName, string.Join(", ", RoleClaim));
+            if (IsAuthenticated)
             {
-                IsAdmin = resp.Result.IsAdmin;
-                if (resp.Result.Roles != null)
+                var resp = await _apiService.GetUserStateAsync();
+                if (resp.Success && resp.Result.IsValid)
                 {
-                    Roles = resp.Result.Roles;
-                }
-                if (!string.IsNullOrEmpty(resp.Result.Language))
-                {
-                    await SetLangAsync(resp.Result.Language);
-                }
-                if (resp.Result.IsNewlyCreated)
-                {
-                    _ = Task.Run(async () =>
+                    IsAdmin = resp.Result.IsAdmin;
+                    if (resp.Result.Roles != null)
                     {
-                        await Task.Delay(1000);
-                        _navigationMaanger.NavigateTo(_navigationMaanger.Uri, forceLoad: true);
-                    });
+                        Roles = resp.Result.Roles;
+                    }
+                    if (!string.IsNullOrEmpty(resp.Result.Language))
+                    {
+                        await SetLangAsync(resp.Result.Language);
+                    }
+                    if (resp.Result.IsNewlyCreated)
+                    {
+                        _ = Task.Run(async () =>
+                        {
+                            await Task.Delay(1000);
+                            _navigationMaanger.NavigateTo(_navigationMaanger.Uri, forceLoad: true);
+                        });
+                    }
                 }
             }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to refresh authentication state.");
         }
     }
 
@@ -192,6 +217,7 @@ internal class RecroSecService : IRecroSecService, IDisposable
 
     public async Task<List<RecroSecResult>> GetPermissionsAsync(IEnumerable<RecroSecQuery> query, int expiration = 60)
     {
+        await EnsureAuthenticationStateInitializedAsync();
         var res = new List<RecroSecResult>();
         var req = new List<RecroSecQuery>();
         foreach (var queryItem in query)

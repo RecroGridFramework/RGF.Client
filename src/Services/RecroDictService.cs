@@ -11,13 +11,13 @@ internal class RecroDictService : IRecroDictService
 {
     private readonly ILogger _logger;
     private readonly IRgfApiService _apiService;
-    private readonly IRecroSecService _recroSecServiec;
+    private readonly IServiceProvider _serviceProvider;
 
-    public RecroDictService(IConfiguration configuration, ILogger<RecroDictService> logger, IRgfApiService apiService, IRecroSecService recroSecServiec)
+    public RecroDictService(IConfiguration configuration, ILogger<RecroDictService> logger, IRgfApiService apiService, IServiceProvider serviceProvider)
     {
         _logger = logger;
         _apiService = apiService;
-        _recroSecServiec = recroSecServiec;
+        _serviceProvider = serviceProvider;
         var config = configuration.GetSection("Recrovit:RecroGridFramework:RecroDict");
         DefaultLanguage = (config.GetValue<string>("DefaultLanguage", "eng") ?? "eng").ToLower();
         Languages = new Dictionary<string, string>() { { DefaultLanguage, DefaultLanguage } };
@@ -26,7 +26,7 @@ internal class RecroDictService : IRecroDictService
 
     public async Task InitializeAsync(string? language = null)
     {
-        language ??= UserLanguage;
+        language ??= DefaultLanguage;
         if (!IsInitialized || language != _uiLanguage)
         {
             var dict = await GetDictionaryAsync("RGF.Language", language, false);
@@ -43,8 +43,6 @@ internal class RecroDictService : IRecroDictService
 
     public string DefaultLanguage { get; private set; }
 
-    public string UserLanguage => _recroSecServiec.UserLanguage;
-
     public Dictionary<string, string> Languages { get; private set; }
 
     public bool IsInitialized { get; private set; }
@@ -59,7 +57,7 @@ internal class RecroDictService : IRecroDictService
     {
         if (string.IsNullOrEmpty(language))
         {
-            language = UserLanguage;
+            language = _uiLanguage ?? DefaultLanguage;
         }
         var dictCache = DictionaryCache.GetOrAdd(language, new MemoryCache(new MemoryCacheOptions()));
         var dict = await dictCache.GetOrCreateAsync(scope, async entry =>

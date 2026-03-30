@@ -91,8 +91,12 @@ public static class RgfClientConfigurationExtension
             if (clientSideRendering)
             {
                 var recroDict = serviceProvider.GetRequiredService<IRecroDictService>();
-                await recroDict.InitializeAsync();
-                _ = serviceProvider.GetRequiredService<IRecroSecService>();
+                string? language = null;
+                if (RgfClientConfiguration.ApiAuthMode == RgfApiAuthMode.WasmBearer)
+                {
+                    language = serviceProvider.GetService<IRecroSecService>()?.UserLanguage;
+                }
+                await recroDict.InitializeAsync(language);
             }
             var logger = serviceProvider.GetRequiredService<ILogger<RgfClientConfiguration>>();
             logger?.LogInformation("RecroGrid Framework Client v{Version} initialized.", RgfClientConfiguration.Version);

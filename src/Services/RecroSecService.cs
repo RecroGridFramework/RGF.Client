@@ -80,18 +80,21 @@ internal class RecroSecService : IRecroSecService, IDisposable
 
     public async Task<string?> SetUserLanguageAsync(string language)
     {
-        await EnsureAuthenticationStateInitializedAsync();
         string? prev = _userLanguage;
-        if (language != null && !language.Equals(UserLanguage, StringComparison.OrdinalIgnoreCase))
+        if (language != null) 
         {
-            language = language.ToLower();
-            var recroDict = _serviceProvider.GetRequiredService<IRecroDictService>();
-            if (recroDict.Languages.ContainsKey(language))
+            await EnsureAuthenticationStateInitializedAsync();
+            if (!language.Equals(UserLanguage, StringComparison.OrdinalIgnoreCase))
             {
-                var res = await SetLangAsync(language);
-                if (res)
+                language = language.ToLower();
+                var recroDict = _serviceProvider.GetRequiredService<IRecroDictService>();
+                if (recroDict.Languages.ContainsKey(language))
                 {
-                    _ = await _apiService.GetUserStateAsync(new() { { "language", language } });//save language setting
+                    var res = await SetLangAsync(language);
+                    if (res)
+                    {
+                        _ = await _apiService.GetUserStateAsync(new() { { "language", language } });//save language setting
+                    }
                 }
             }
         }

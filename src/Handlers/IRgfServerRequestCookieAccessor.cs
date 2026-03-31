@@ -7,3 +7,8 @@ public interface IRgfServerRequestCookieAccessor
 {
     string? GetCookieHeader();
 }
+
+public sealed class NoOpRgfServerRequestCookieAccessor : IRgfServerRequestCookieAccessor
+{
+    public string? GetCookieHeader() => null;
+}

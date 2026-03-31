@@ -14,6 +14,7 @@ public class ApiService : IRgfApiService
     private readonly IHttpClientFactory _httpClientFactory;
 
     private readonly ILogger<ApiService> _logger;
+    private readonly IRgfAuthenticationFailureHandler _authenticationFailureHandler;
 
     public const string RgfApiClientName = "RGF.API";
 
@@ -23,10 +24,11 @@ public class ApiService : IRgfApiService
 
     public static string ExternalBaseAddress { get; set; } = string.Empty;
 
-    public ApiService(IHttpClientFactory httpClientFactory, ILogger<ApiService> logger)
+    public ApiService(IHttpClientFactory httpClientFactory, ILogger<ApiService> logger, IRgfAuthenticationFailureHandler authenticationFailureHandler)
     {
         _httpClientFactory = httpClientFactory;
-        this._logger = logger;
+        _logger = logger;
+        _authenticationFailureHandler = authenticationFailureHandler;
     }
 
     public async Task<IRgfApiResponse<ResultType>> GetAsync<ResultType>(IRgfApiRequest request) where ResultType : class
@@ -96,6 +98,27 @@ public class ApiService : IRgfApiService
         result.ReasonPhrase = response.ReasonPhrase;
         if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
         {
+            var responseHeaders = CreateResponseHeaders(response);
+            var isReauthenticationRequired = response.StatusCode == HttpStatusCode.Unauthorized && IsReauthenticationRequired(responseHeaders);
+
+            if (isReauthenticationRequired)
+            {
+                try
+                {
+                    await _authenticationFailureHandler.HandleUnauthorizedAsync(new RgfAuthenticationFailureContext
+                    {
+                        StatusCode = response.StatusCode,
+                        RequestUri = request.Uri,
+                        IsReauthenticationRequired = true,
+                        ResponseHeaders = responseHeaders
+                    }, request.CancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to handle unauthorized API response for {RequestUri}.", request.Uri);
+                }
+            }
+
             result.ErrorMessage = CreateAuthErrorMessage(response);
             result.Success = false;
             return;
@@ -145,6 +168,23 @@ public class ApiService : IRgfApiService
             HttpStatusCode.Forbidden => "The current user is not authorized to access this resource.",
             _ => response.StatusCode.ToString()
         };
+    }
+
+    private static bool IsReauthenticationRequired(IReadOnlyDictionary<string, string[]> responseHeaders)
+    {
+        return responseHeaders.TryGetValue(RgfAuthenticationFailureContext.ReauthenticationRequiredHeaderName, out var values)
+            && values.Contains(RgfAuthenticationFailureContext.ReauthenticationRequiredHeaderValue, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static IReadOnlyDictionary<string, string[]> CreateResponseHeaders(HttpResponseMessage response)
+    {
+        return response.Headers
+            .Concat(response.Content?.Headers ?? Enumerable.Empty<KeyValuePair<string, IEnumerable<string>>>())
+            .GroupBy(header => header.Key, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                group => group.Key,
+                group => group.SelectMany(header => header.Value).ToArray(),
+                StringComparer.OrdinalIgnoreCase);
     }
 
     private static string GetClientName(IRgfApiRequest request)

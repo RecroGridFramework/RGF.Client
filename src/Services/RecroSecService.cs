@@ -5,6 +5,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Recrovit.RecroGridFramework.Abstraction.Contracts.Services;
+using Recrovit.RecroGridFramework.Abstraction.Contracts.API;
 using Recrovit.RecroGridFramework.Abstraction.Infrastructure.Events;
 using Recrovit.RecroGridFramework.Abstraction.Infrastructure.Security;
 using Recrovit.RecroGridFramework.Client.Handlers;
@@ -78,7 +79,7 @@ internal class RecroSecService : IRecroSecService, IDisposable
         }
     }
 
-    public async Task<string?> SetUserLanguageAsync(string language)
+    public async Task<string?> SetUserLanguageAsync(string? language)
     {
         string? prev = _userLanguage;
         if (language != null) 
@@ -155,6 +156,10 @@ internal class RecroSecService : IRecroSecService, IDisposable
     {
         try
         {
+            var previousUserName = UserName;
+            var previousIsAuthenticated = IsAuthenticated;
+            var previousIsAdmin = IsAdmin;
+            var previousRoleSignature = GetRoleSignature(Roles);
             IsAdmin = false;
             Roles = [];
             var authenticationState = await stateTask;
@@ -166,6 +171,7 @@ internal class RecroSecService : IRecroSecService, IDisposable
                 var resp = await _apiService.GetUserStateAsync();
                 if (resp.Success && resp.Result.IsValid)
                 {
+                    ApplyUserState(resp.Result);
                     IsAdmin = resp.Result.IsAdmin;
                     if (resp.Result.Roles != null)
                     {
@@ -184,6 +190,15 @@ internal class RecroSecService : IRecroSecService, IDisposable
                         });
                     }
                 }
+            }
+
+            var currentRoleSignature = GetRoleSignature(Roles);
+            if (previousIsAuthenticated != IsAuthenticated
+                || previousIsAdmin != IsAdmin
+                || !string.Equals(previousUserName, UserName, StringComparison.Ordinal)
+                || !string.Equals(previousRoleSignature, currentRoleSignature, StringComparison.Ordinal))
+            {
+                _ = AuthenticationStateChanged.InvokeAsync(EventArgs.Empty);
             }
         }
         catch (Exception ex)
@@ -252,9 +267,71 @@ internal class RecroSecService : IRecroSecService, IDisposable
         return res;
     }
 
+    public EventDispatcher<EventArgs> AuthenticationStateChanged { get; } = new();
+
     public EventDispatcher<DataEventArgs<string>> LanguageChangedEvent { get; } = new();
 
     private string? _userLanguage;
 
     private MemoryCache _recrosSecCache { get; } = new MemoryCache(new MemoryCacheOptions());
+
+    private static string GetRoleSignature(Dictionary<string, string> roles)
+        => string.Join("|", roles.OrderBy(pair => pair.Key, StringComparer.Ordinal).Select(pair => $"{pair.Key}={pair.Value}"));
+
+    private void ApplyUserState(RgfUserState state)
+    {
+        if (RgfClientConfiguration.ApiAuthMode is not (RgfApiAuthMode.ServerProxy or RgfApiAuthMode.ServerProxySsr))
+        {
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(state.UserName) && string.IsNullOrWhiteSpace(CurrentUser.Identity?.Name))
+        {
+            var identities = CurrentUser.Identities.ToArray();
+            if (identities.Length == 0)
+            {
+                CurrentUser = new ClaimsPrincipal(CreateIdentity(state));
+                return;
+            }
+
+            CurrentUser = new ClaimsPrincipal(identities.Select(identity => EnrichIdentity(identity, state)));
+        }
+    }
+
+    private static ClaimsIdentity EnrichIdentity(ClaimsIdentity identity, RgfUserState state)
+    {
+        if (!string.IsNullOrWhiteSpace(identity.Name))
+        {
+            return identity;
+        }
+
+        var enrichedIdentity = new ClaimsIdentity(identity);
+        if (!string.IsNullOrWhiteSpace(state.UserName) && !enrichedIdentity.HasClaim(claim => claim.Type == enrichedIdentity.NameClaimType))
+        {
+            enrichedIdentity.AddClaim(new Claim(enrichedIdentity.NameClaimType, state.UserName));
+        }
+
+        return enrichedIdentity;
+    }
+
+    private static ClaimsIdentity CreateIdentity(RgfUserState state)
+    {
+        var claims = new List<Claim>();
+        if (!string.IsNullOrWhiteSpace(state.UserName))
+        {
+            claims.Add(new Claim(ClaimTypes.Name, state.UserName));
+        }
+
+        if (!string.IsNullOrWhiteSpace(state.Language))
+        {
+            claims.Add(new Claim("Language", state.Language));
+        }
+
+        if (state.Roles is not null)
+        {
+            claims.AddRange(state.Roles.Keys.Select(roleId => new Claim(ClaimTypes.Role, roleId)));
+        }
+
+        return new ClaimsIdentity(claims, authenticationType: "ServerProxy");
+    }
 }

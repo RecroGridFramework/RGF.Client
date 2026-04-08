@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Recrovit.RecroGridFramework.Abstraction.Contracts.Constants;
 using Recrovit.RecroGridFramework.Abstraction.Contracts.Services;
 using Recrovit.RecroGridFramework.Client.Handlers;
@@ -36,6 +37,8 @@ public static class RgfClientConfigurationExtension
         RgfApiAuthMode authMode = RgfApiAuthMode.None, string? browserBaseAddress = null)
     {
         var config = configuration.GetSection("Recrovit:RecroGridFramework");
+        services.AddOptions<RgfAuthenticationOptions>()
+            .Bind(config.GetSection("Authentication"));
         var externalBaseAddress = config.GetValue<string>("API:BaseAddress", string.Empty)!.TrimEnd('/');
         var configuredBrowserBaseAddress = browserBaseAddress ?? config.GetValue<string>("API:BrowserBaseAddress", string.Empty);
         var effectiveBrowserBaseAddress = string.IsNullOrWhiteSpace(configuredBrowserBaseAddress) ? externalBaseAddress : configuredBrowserBaseAddress.TrimEnd('/');
@@ -72,6 +75,7 @@ public static class RgfClientConfigurationExtension
         });
 
         services.AddSingleton<IRgfApiService, ApiService>();
+        services.AddSingleton<RgfAuthenticationPrincipalFactory>();
         services.AddScoped<IRgfAccessTokenAccessor, NoOpRgfAccessTokenAccessor>();
         services.AddSingleton<IRgfAuthenticationFailureHandler, NoOpRgfAuthenticationFailureHandler>();
         services.AddScoped<IRgfEventNotificationService, RgfEventNotificationService>();

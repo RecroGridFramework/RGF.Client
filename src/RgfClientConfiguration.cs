@@ -18,7 +18,7 @@ public class RgfClientConfiguration
 
     public static string ExternalApiBaseAddress { get; internal set; } = string.Empty;
 
-    public static string BrowserApiBaseAddress { get; internal set; } = string.Empty;
+    public static string ProxyApiBaseAddress { get; internal set; } = string.Empty;
 
     public static RgfApiAuthMode ApiAuthMode { get; internal set; } = RgfApiAuthMode.None;
 
@@ -34,31 +34,33 @@ public class RgfClientConfiguration
 public static class RgfClientConfigurationExtension
 {
     public static IServiceCollection AddRgfServices(this IServiceCollection services, IConfiguration configuration, ILogger? logger = null,
-        RgfApiAuthMode authMode = RgfApiAuthMode.None, string? browserBaseAddress = null)
+        RgfApiAuthMode authMode = RgfApiAuthMode.None)
     {
         var config = configuration.GetSection("Recrovit:RecroGridFramework");
         services.AddOptions<RgfAuthenticationOptions>()
             .Bind(config.GetSection("Authentication"));
         var externalBaseAddress = config.GetValue<string>("API:BaseAddress", string.Empty)!.TrimEnd('/');
-        var configuredBrowserBaseAddress = browserBaseAddress ?? config.GetValue<string>("API:BrowserBaseAddress", string.Empty);
-        var effectiveBrowserBaseAddress = string.IsNullOrWhiteSpace(configuredBrowserBaseAddress) ? externalBaseAddress : configuredBrowserBaseAddress.TrimEnd('/');
+        var configuredProxyBaseAddress = config.GetValue<string>("API:ProxyBaseAddress", string.Empty);
+        var effectiveProxyBaseAddress = ResolveProxyBaseAddress(authMode, externalBaseAddress, configuredProxyBaseAddress);
         var root = config.GetValue("AppRootPath", config.GetValue("AppRootUrl", ""));
         if (!string.IsNullOrEmpty(root))
         {
             RgfClientConfiguration.AppRootPath = root.TrimEnd('/');
         }
         ApiService.ExternalBaseAddress = externalBaseAddress;
-        ApiService.BaseAddress = effectiveBrowserBaseAddress;
+        ApiService.BaseAddress = effectiveProxyBaseAddress;
         RgfClientConfiguration.ExternalApiBaseAddress = externalBaseAddress;
-        RgfClientConfiguration.BrowserApiBaseAddress = effectiveBrowserBaseAddress;
+        RgfClientConfiguration.ProxyApiBaseAddress = effectiveProxyBaseAddress;
         RgfClientConfiguration.ApiAuthMode = authMode;
 
-        logger?.LogInformation("AddRgfServices: AppRootPath={AppRootPath}, BrowserApiBaseAddress={BrowserApiBaseAddress}, ExternalApiBaseAddress={ExternalApiBaseAddress}, ApiAuthMode={ApiAuthMode}",
-            RgfClientConfiguration.AppRootPath, RgfClientConfiguration.BrowserApiBaseAddress, RgfClientConfiguration.ExternalApiBaseAddress, RgfClientConfiguration.ApiAuthMode);
+        logger?.LogInformation("AddRgfServices: AppRootPath={AppRootPath}, ProxyApiBaseAddress={ProxyApiBaseAddress}, ExternalApiBaseAddress={ExternalApiBaseAddress}, ApiAuthMode={ApiAuthMode}",
+            RgfClientConfiguration.AppRootPath, RgfClientConfiguration.ProxyApiBaseAddress, RgfClientConfiguration.ExternalApiBaseAddress, RgfClientConfiguration.ApiAuthMode);
 
         if (string.IsNullOrEmpty(ApiService.BaseAddress))
         {
-            const string msg = "The 'Recrovit:RecroGridFramework:API:BaseAddress' or 'Recrovit:RecroGridFramework:API:BrowserBaseAddress' configuration setting is missing or invalid.";
+            var msg = authMode is RgfApiAuthMode.ServerProxy or RgfApiAuthMode.ServerProxySsr
+                ? "The proxy base address is missing or invalid. Set 'Recrovit:RecroGridFramework:API:ProxyBaseAddress'."
+                : "The 'Recrovit:RecroGridFramework:API:BaseAddress' configuration setting is missing or invalid.";
             logger?.LogCritical(msg);
             throw new InvalidOperationException(msg);
         }
@@ -85,6 +87,18 @@ public static class RgfClientConfigurationExtension
         services.AddTransient<IRgfProgressService, RgfProgressService>();
 
         return services;
+    }
+
+    private static string ResolveProxyBaseAddress(RgfApiAuthMode authMode, string externalBaseAddress, string configuredProxyBaseAddress)
+    {
+        if (!string.IsNullOrWhiteSpace(configuredProxyBaseAddress))
+        {
+            return configuredProxyBaseAddress.TrimEnd('/');
+        }
+
+        return authMode is RgfApiAuthMode.ServerProxy or RgfApiAuthMode.ServerProxySsr
+            ? string.Empty
+            : externalBaseAddress;
     }
 
     public static async Task InitializeRgfClientAsync(this IServiceProvider serviceProvider, bool clientSideRendering = true)

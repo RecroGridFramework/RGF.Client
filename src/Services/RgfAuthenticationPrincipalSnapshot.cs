@@ -7,6 +7,18 @@ internal sealed class RgfAuthenticationPrincipalSnapshot
 {
     public bool IsAuthenticated { get; init; }
 
+    public string? Name { get; init; }
+
+    public string? PreferredUsername { get; init; }
+
+    public string? Email { get; init; }
+
+    public string? SubjectId { get; init; }
+
+    public string? Issuer { get; init; }
+
+    public string? ObjectId { get; init; }
+
     public IReadOnlyList<RgfAuthenticationIdentitySnapshot> Identities { get; init; } = [];
 }
 
@@ -36,10 +48,13 @@ internal sealed class RgfAuthenticationClaimSnapshot
 
 internal sealed class RgfAuthenticationPrincipalFactory(IOptions<RgfAuthenticationOptions> options)
 {
+    private const string MinimalSnapshotAuthenticationType = "server-proxy";
+    private const string ObjectIdClaimType = "oid";
+    private const string PreferredUsernameClaimType = "preferred_username";
+
     private static readonly string[] DefaultNameClaimFallbackTypes =
     [
         "name",
-        "preferred_username",
         ClaimTypes.Name,
         ClaimTypes.Email,
         "email",
@@ -52,8 +67,29 @@ internal sealed class RgfAuthenticationPrincipalFactory(IOptions<RgfAuthenticati
     {
         ArgumentNullException.ThrowIfNull(snapshot);
 
+        if (snapshot.IsAuthenticated && snapshot.Identities.Count == 0)
+        {
+            return new ClaimsPrincipal(CreateMinimalIdentity(snapshot));
+        }
+
         var identities = snapshot.Identities.Select(CreateIdentity).ToArray();
         return new ClaimsPrincipal(identities);
+    }
+
+    private ClaimsIdentity CreateMinimalIdentity(RgfAuthenticationPrincipalSnapshot snapshot)
+    {
+        var nameClaimType = ClaimsIdentity.DefaultNameClaimType;
+        var roleClaimType = ClaimsIdentity.DefaultRoleClaimType;
+        var claims = new List<Claim>();
+
+        AddMinimalClaim(claims, nameClaimType, snapshot.Name, snapshot.Issuer);
+        AddMinimalClaim(claims, PreferredUsernameClaimType, snapshot.PreferredUsername, snapshot.Issuer);
+        AddMinimalClaim(claims, ClaimTypes.Email, snapshot.Email, snapshot.Issuer);
+        AddMinimalClaim(claims, "email", snapshot.Email, snapshot.Issuer);
+        AddMinimalClaim(claims, ClaimTypes.NameIdentifier, snapshot.SubjectId, snapshot.Issuer);
+        AddMinimalClaim(claims, ObjectIdClaimType, snapshot.ObjectId, snapshot.Issuer);
+
+        return new ClaimsIdentity(claims, MinimalSnapshotAuthenticationType, nameClaimType, roleClaimType);
     }
 
     private ClaimsIdentity CreateIdentity(RgfAuthenticationIdentitySnapshot snapshot)
@@ -112,6 +148,21 @@ internal sealed class RgfAuthenticationPrincipalFactory(IOptions<RgfAuthenticati
             sourceClaim.ValueType,
             sourceClaim.Issuer,
             sourceClaim.OriginalIssuer));
+    }
+
+    private static void AddMinimalClaim(ICollection<Claim> claims, string claimType, string? value, string? issuer)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return;
+        }
+
+        claims.Add(new Claim(
+            claimType,
+            value,
+            ClaimValueTypes.String,
+            string.IsNullOrWhiteSpace(issuer) ? ClaimsIdentity.DefaultIssuer : issuer,
+            string.IsNullOrWhiteSpace(issuer) ? ClaimsIdentity.DefaultIssuer : issuer));
     }
 
     private IReadOnlyList<string> GetEffectiveNameClaimFallbackTypes()
